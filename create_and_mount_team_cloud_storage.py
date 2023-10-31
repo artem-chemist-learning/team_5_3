@@ -176,6 +176,28 @@
 
 # COMMAND ----------
 
+secret_scope = "team53scope"
+secret_key   = "team53secret"    
+spark.conf.set(
+  f"fs.azure.sas.{blob_container}.{storage_account}.blob.core.windows.net",
+  dbutils.secrets.get(scope = secret_scope, key = secret_key)
+)
+blob_container  = "team53container"       # The name of your container created in https://portal.azure.com
+storage_account = "w261team53" # The name of your Storage account created in https://portal.azure.com
+team_blob_url = f"wasbs://{blob_container}@{storage_account}.blob.core.windows.net"
+
+pdf = pd.DataFrame([[1, 2, 3, "Jane"], [2, 2,2, None], [12, 12,12, "John"]], columns=["x", "y", "z", "a_string"])
+df = spark.createDataFrame(pdf) # Create a Spark dataframe from a pandas DF
+
+# The following can write the dataframe to the team's Cloud Storage  
+# Navigate back to your Storage account in https://portal.azure.com, to inspect the partitions/files.
+df.write.parquet(f"{team_blob_url}/test")
+
+# see what's in the parquet folder 
+display(dbutils.fs.ls(f"{team_blob_url}/test"))
+
+# COMMAND ----------
+
 # MAGIC
 # MAGIC %md
 # MAGIC # Read/write to blob storage (for all team members)
@@ -202,10 +224,10 @@
 # The following blob storage is accessible to team members only (read and write)
 # access key is valid til TTL
 # after that you will need to create a new SAS key and authenticate access again via DataBrick command line
-blob_container  = ""       # The name of your container created in https://portal.azure.com
-storage_account = ""  # The name of your Storage account created in https://portal.azure.com
-secret_scope    = ""           # The name of the scope created in your local computer using the Databricks CLI
-secret_key      = ""             # The name of the secret key created in your local computer using the Databricks CLI
+blob_container  = "team53container"       # The name of your container created in https://portal.azure.com
+storage_account = "w261team53"  # The name of your Storage account created in https://portal.azure.com
+secret_scope    = "team53scope"           # The name of the scope created in your local computer using the Databricks CLI
+secret_key      = "team53secret"             # The name of the secret key created in your local computer using the Databricks CLI
 team_blob_url   = f"wasbs://{blob_container}@{storage_account}.blob.core.windows.net"  #points to the root of your team storage bucket
 
 
