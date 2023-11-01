@@ -1,11 +1,4 @@
 # Databricks notebook source
-# MAGIC %md
-# MAGIC # PLEASE CLONE THIS NOTEBOOK INTO YOUR PERSONAL FOLDER
-# MAGIC # DO NOT RUN CODE IN THE SHARED FOLDER
-# MAGIC
-
-# COMMAND ----------
-
 from pyspark.sql.functions import col
 print("Welcome to the W261 final project!") 
 
