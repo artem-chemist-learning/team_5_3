@@ -105,7 +105,24 @@
 
 # MAGIC %md
 # MAGIC ## Metrics of success
-# MAGIC Metrics that you might use to measure success (standard metrics and domain-specific metrics)
+# MAGIC To measure usefulness of the model we will use precision at 80% recall.
+# MAGIC Given the imbalanced nature of the dataset simple accuracy would not be the optimal metric. On such dataset there is usually little difference in accuracy between a usable model and the one that does not yield any actionable insight. Interplay between precision and recall determines usefulness of the model in this case.
+# MAGIC $$Accuracy = \frac{\text{correctly predicted as delayed}}{\text{all flights predicted as delayed}}$$
+# MAGIC
+# MAGIC $$Recall = \frac{\text{correctly predicted as delayed}}{\text{all flights actually delayed}}$$
+# MAGIC Normally the output of already trained model can be easily tuned to increase one metric at the expense of another. Therefore, a compound metric that combines precision and recall into one number is used to compare different models. Examples of such metrics are F1-score and ROC AUC.
+# MAGIC $$F1 = \frac{2}{\frac{1}{Precision} + \frac{1}{Recall}}$$
+# MAGIC These metrics allow for easy comparision between models, but do not measure model usefullness directly. For instance,  a model can have very high ROC AUC, but not demonstrate acceptabel precision at any level of recall, because of the shape of ROC curve.
+# MAGIC
+# MAGIC To come up with a usefull metric we have to make certain assumptions:
+# MAGIC - The model will be used by airlines to better allocate resources in case of a delayed flight
+# MAGIC - Currently, airlines already handle this probelm in some fasion and the current solution is already acceptable, i.e. the problem is not severe.
+# MAGIC - The cost of small delay, a few minutes over 15 min cut off, is likely 0. Most passengers have a few hours between connecting flights and 15 min delay will not require any action.
+# MAGIC - The cost of action in case of the delayed flight can not be 0. If airline decides to act on the model prediction, some resources will be spent on acting on this prediction. 
+# MAGIC
+# MAGIC Based on these assumptions we conclude that low recall is more tolerable than low precision. Lots of flights mislabeled as delayed will inevityably result in noticible cost, while some flights that model misses will likely not casue any problem. At the same time, if the recall is very low and the model misses most delayed flights, there will be instances when the model overlooks a significant delay. Large cost will be incured by the airline and they will stop using this model after just a few of these costly mistakes. Without in-depth domain knowledge we decided that 80% recall is an accpetable compromise.
+# MAGIC
+# MAGIC With this accptably low recall we will optimise our models to achive maximum precision. This way the airline can be certain that the flight flagged as delayed is actually going to be delayed and the resources expended on dealing with the delay are not spent in vain. At the same time, the airline can continue using its current practices to deal with the few short delays overlooked by the model.
 # MAGIC
 
 # COMMAND ----------
