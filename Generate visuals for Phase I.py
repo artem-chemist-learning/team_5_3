@@ -9,6 +9,56 @@
 
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
+# COMMAND ----------
+
+# See the names of the dataset provided.
+mids261_mount_path      = "/mnt/mids-w261"
+display(dbutils.fs.ls(f"{mids261_mount_path}/datasets_final_project_2022"))
+
+# COMMAND ----------
+
+# Read full dataset, get only daily data for NYC
+df_weather = spark.read.parquet(f"dbfs:/mnt/mids-w261/datasets_final_project_2022/parquet_weather_data/")
+df_NYC_weather = df_weather.filter(df_weather['NAME'] == 'JFK INTERNATIONAL AIRPORT, NY US')
+df_to_plot = df_NYC_weather[['DATE','DailyAverageWindSpeed']].dropna()
+
+
+# COMMAND ----------
+
+# Convert to pandas, fix datatypes
+df_to_plot = df_to_plot.toPandas()
+df_to_plot['DATE'] = pd.to_datetime(df_to_plot['DATE'])
+df_to_plot['DailyAverageWindSpeed'] = pd.to_numeric(df_to_plot['DailyAverageWindSpeed'], errors =  'coerce')
+df_to_plot.dropna(inplace = True)
+df_to_plot.columns = ['Date', 'Wind']
+df_to_plot.head()
+
+# COMMAND ----------
+
+ # Instantiate figure and axis
+num_rows = 1
+num_columns = 1
+fig, axes = plt.subplots()
+#Adjust space between plots in the figure
+# plt.subplots_adjust(hspace = 1)
+
+#Fill the axis with data
+axes.scatter(df_to_plot.Date, df_to_plot.Wind)  
+
+#Set title and axis legend, only set axis legend on the sides
+axes.set_title("Wind at JFK")
+
+# Remove the bounding box to make the graphs look less cluttered
+axes.spines['right'].set_visible(False)
+axes.spines['top'].set_visible(False)
+#Format ticks
+for tick in axes.get_xticklabels():
+    tick.set_rotation(45)
+plt.show()
 
 # COMMAND ----------
 
