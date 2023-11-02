@@ -1,7 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC
-# MAGIC # We gonna make it
+# MAGIC # Predicting Airline Delays
 
 # COMMAND ----------
 
@@ -25,8 +24,8 @@
 # MAGIC |---|---|
 # MAGIC |Bailey Kuehl|Week 1|
 # MAGIC |Art|Week 2|
-# MAGIC |Art|Week 3|
-# MAGIC |Art|Week 4|
+# MAGIC |Erik|Week 3|
+# MAGIC |Lucy|Week 4|
 
 # COMMAND ----------
 
@@ -171,7 +170,7 @@
 # MAGIC - Missing data
 # MAGIC
 # MAGIC #### Conclusions 
-# MAGIC - TBD
+# MAGIC - TBD: We plan to draw conclusions from our data in Phases 2 and 3.
 # MAGIC
 # MAGIC #### Next Steps
 # MAGIC - In depth ETA on joined dataset
