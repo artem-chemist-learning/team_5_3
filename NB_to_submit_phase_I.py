@@ -89,7 +89,9 @@
 # MAGIC
 # MAGIC #### Visuals
 # MAGIC Historic trend of delays
+# MAGIC
 # MAGIC Historic trend of precepitation
+# MAGIC
 # MAGIC Historic trend of delays at one airport
 
 # COMMAND ----------
