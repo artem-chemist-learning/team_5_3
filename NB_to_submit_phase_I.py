@@ -88,8 +88,9 @@
 # MAGIC [Bailey]
 # MAGIC
 # MAGIC #### Visuals
-# MAGIC [Artem]
-# MAGIC
+# MAGIC Historic trend of delays
+# MAGIC Historic trend of precepitation
+# MAGIC Historic trend of delays at one airport
 
 # COMMAND ----------
 
