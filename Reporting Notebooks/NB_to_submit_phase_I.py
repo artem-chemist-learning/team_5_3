@@ -87,24 +87,27 @@
 # MAGIC [Bailey]
 # MAGIC
 # MAGIC #### Visuals
-# MAGIC Historic trend of delays
 # MAGIC
-# MAGIC Historic trend of precepitation
-# MAGIC
-# MAGIC Historic trend of delays at one airport
+
+# COMMAND ----------
+
+from IPython.display import Image
+Image(filename='../Code/Correlation of delays and weather.jpg', width=600, height=900) 
+
+# COMMAND ----------
+
+Image(filename='../Code/Correlation of delays and weather.jpg', width=300, height=300) 
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Algorithms to be explored
+# MAGIC
 # MAGIC Which machine learning algorithm(s) are you considering using and why?
 # MAGIC
 # MAGIC Description of algorithms to be used (list the names, implementations, loss functions that you will use)
 # MAGIC Description of metrics and analysis to be used (be sure to include the equations for the metrics)
 # MAGIC
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ## Train Test Split
 # MAGIC [Bailey]

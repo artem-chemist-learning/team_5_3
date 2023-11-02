@@ -14,11 +14,11 @@
 # Import statements
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from datetime import datetime
-from dateutil.relativedelta import relativedelta
-from pyspark.sql.functions import sum,avg,max,count
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from pyspark.sql.functions import udf
+from pyspark.sql.types import StringType, IntegerType, FloatType
+import pyspark.sql.functions as F
+from pyspark.sql import types
+#import sum,avg,max,count
 
 # COMMAND ----------
 
@@ -67,7 +67,51 @@ df_combined_3.display()
 
 # COMMAND ----------
 
-# Check datatypes of data
+#df_combined_3.show(df_combined_3.count(), truncate = True)
+df_combined_3.describe().display()
+
+# COMMAND ----------
+
+# MAGIC %md 
+# MAGIC #### Cast correct datatypes
+
+# COMMAND ----------
+
+# Function to try casting as detected datatype
+def cast_dtype(value: str):
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    return value
+
+# COMMAND ----------
+
+# Recast date
+df_combined_3 = df_combined_3.withColumn("DATE", 
+                                  F.concat(F.lit("2015-"),
+                                  F.col("DAY_OF_MONTH"), F.lit("-"),
+                                  F.col("DAY_OF_WEEK")).cast(types.TimestampType()))
+
+# Call casting function
+#def get_rows(row):
+#    #return row["FL_DATE"]
+#    print(row["FL_DATE"])
+#df_combined_3.foreach(get_rows)
+
+# COMMAND ----------
+
+# Define the UDF (User-Defined Function) to apply your casting function
+cast_dtype_udf = udf(cast_dtype, StringType())
+
+# Create a new column with the casted values
+df_combined_3 = df_combined_3.withColumn("CASTED_latt", cast_dtype_udf(df_combined_3["origin_airport_lat"]))
+
+# Show the DataFrame
 df_combined_3.printSchema()
 
 # COMMAND ----------

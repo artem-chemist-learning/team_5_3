@@ -89,18 +89,23 @@ num_columns = 1
 fig, axes = plt.subplots(num_rows, num_columns, sharex=True)
 fig.set_figheight(10)
 #Adjust space between plots in the figure
-plt.subplots_adjust(hspace = 0.2)
+#plt.subplots_adjust(hspace = 0.2)
 mask = (df_to_plot['Date'] > pd.to_datetime('2015-10-01')) & (df_to_plot['Date'] <= pd.to_datetime('2021-12-01'))
 
 #Fill the axis with data
-axes[0].scatter(df_to_plot.Date[mask], df_to_plot.Wind[mask], s=2)  
-axes[1].scatter(df_to_plot.Date[mask], df_to_plot.Mean_delay[mask], s=2) 
-axes[2].scatter(df_to_plot.Date[mask], df_to_plot.Precipitation[mask], s=2) 
+axes[0].scatter(df_to_plot.Date[mask], df_to_plot.Wind[mask], s=2, label = "Wind at JFK", color = 'g')  
+axes[1].scatter(df_to_plot.Date[mask], df_to_plot.Mean_delay[mask], s=2, label = "Mean delay at JFK", color = 'r') 
+axes[2].scatter(df_to_plot.Date[mask], df_to_plot.Precipitation[mask], s=2, label = "Rain at JFK", color = 'b') 
 
 #Set title and axis legend, only set axis legend on the sides
-axes[0].set_title("Wind at JFK")
-axes[1].set_title("Mean delay at JFK")
-axes[2].set_title("Rain at JFK")
+axes[0].legend(loc = 'upper left')
+axes[1].legend(loc = 'upper left')
+axes[2].legend(loc = 'upper left')
+
+axes[0].set_ylabel('Average wind, m/s')
+axes[1].set_ylabel('Average delay, min')
+axes[2].set_ylabel('Daily precip., in')
+axes[2].set_xlabel('Date')
 
 # Remove the bounding box to make the graphs look less cluttered
 #axes[0].spines['right'].set_visible(False)
@@ -128,10 +133,21 @@ df_to_plot['Mean_delay_z'] = (df_to_plot['Mean_delay'] - df_to_plot['Mean_delay'
 
 # COMMAND ----------
 
-plt.matshow(df_to_plot[['Wind','Mean_delay','Precipitation']].corr())
-cb = plt.colorbar()
-cb.ax.tick_params(labelsize=14)
-plt.title('Correlation Matrix', fontsize=16)
+features = ['Wind','Mean_delay','Precipitation']
+fig, ax = plt.subplots()
+corr_mtx = df_to_plot[features].corr()
+c = ax.matshow(corr_mtx)
+ax.set_xticks(np.arange(len(features)), labels=features)
+ax.set_yticks(np.arange(len(features)), labels=features)
+fig.colorbar(c, ax = ax) 
+ax.set_title('Correlation of delays and weather')
+
+# Loop over data dimensions and create text annotations.
+for i in range(len(features)):
+    for j in range(len(features)):
+        text = ax.text(j, i, corr_mtx.iloc[i, j],
+                       ha="center", va="center", color="w")
+
 fig.savefig(f"Correlation of delays and weather.jpg", bbox_inches='tight', dpi = 300)
 plt.show()
 
@@ -139,3 +155,7 @@ plt.show()
 
 plot_pacf(df_to_plot.Mean_delay, lags = 14)
 plt.show()
+
+# COMMAND ----------
+
+
