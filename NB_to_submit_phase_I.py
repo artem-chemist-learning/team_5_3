@@ -23,7 +23,7 @@
 # MAGIC
 # MAGIC |Person|Week|
 # MAGIC |---|---|
-# MAGIC |Art|Week 1|
+# MAGIC |Bailey Kuehl|Week 1|
 # MAGIC |Art|Week 2|
 # MAGIC |Art|Week 3|
 # MAGIC |Art|Week 4|
@@ -46,6 +46,14 @@
 # MAGIC |Train, test split|1|Bailey|1.5|
 # MAGIC |Abstract|1|Bailey|0.5|
 # MAGIC |Conclusions, challenges, next steps|1|Bailey|0.5|
+# MAGIC ||2|Art||
+# MAGIC ||2|Erik||
+# MAGIC ||2|Lucy||
+# MAGIC ||2|Bailey||
+# MAGIC ||3|Art||
+# MAGIC ||3|Erik||
+# MAGIC ||3|Lucy||
+# MAGIC ||3|Bailey||
 # MAGIC
 
 # COMMAND ----------
@@ -62,17 +70,25 @@
 
 # MAGIC %md
 # MAGIC ## Data description
-# MAGIC Data you plan to use
 # MAGIC
-# MAGIC Basic analysis and understanding of data
+# MAGIC #### Airlines    
+# MAGIC [Lucy]
+# MAGIC
+# MAGIC
+# MAGIC #### Weather 
+# MAGIC [Erik]
 # MAGIC
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Summary visual EDA
+# MAGIC ## Summary of Data
 # MAGIC
-# MAGIC Data you plan to use
+# MAGIC #### Quantitative (mean, std)
+# MAGIC [Bailey]
+# MAGIC
+# MAGIC #### Visuals
+# MAGIC [Artem]
 # MAGIC
 
 # COMMAND ----------
@@ -104,12 +120,13 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Metrics of success
+# MAGIC ## Success Metrics
 # MAGIC To measure usefulness of the model we will use precision at 80% recall.
-# MAGIC Given the imbalanced nature of the dataset simple accuracy would not be the optimal metric. On such dataset there is usually little difference in accuracy between a usable model and the one that does not yield any actionable insight. Interplay between precision and recall determines usefulness of the model in this case.
-# MAGIC $$Accuracy = \frac{\text{correctly predicted as delayed}}{\text{all flights predicted as delayed}}$$
 # MAGIC
-# MAGIC $$Recall = \frac{\text{correctly predicted as delayed}}{\text{all flights actually delayed}}$$
+# MAGIC Given the imbalanced nature of the dataset simple accuracy would not be the optimal metric. On such dataset there is usually little difference in accuracy between a usable model and the one that does not yield any actionable insight. Interplay between precision and recall determines usefulness of the model in this case.
+# MAGIC $$Precision = \frac{\text{correctly predicted as delayed}}{\text{all flights predicted as delayed}} = \frac{\text{True Positives}}{\text{True Positives + False Positive}}$$
+# MAGIC
+# MAGIC $$Recall = \frac{\text{correctly predicted as delayed}}{\text{all flights actually delayed}}= \frac{\text{True Positives}}{\text{True Positives + False Negatives}}$$
 # MAGIC Normally the output of already trained model can be easily tuned to increase one metric at the expense of another. Therefore, a compound metric that combines precision and recall into one number is used to compare different models. Examples of such metrics are F1-score and ROC AUC.
 # MAGIC $$F1 = \frac{2}{\frac{1}{Precision} + \frac{1}{Recall}}$$
 # MAGIC These metrics allow for easy comparision between models, but do not measure model usefullness directly. For instance,  a model can have very high ROC AUC, but not demonstrate acceptabel precision at any level of recall, because of the shape of ROC curve.
@@ -117,12 +134,12 @@
 # MAGIC To come up with a usefull metric we have to make certain assumptions:
 # MAGIC - The model will be used by airlines to better allocate resources in case of a delayed flight
 # MAGIC - Currently, airlines already handle this probelm in some fasion and the current solution is already acceptable, i.e. the problem is not severe.
-# MAGIC - The cost of small delay, a few minutes over 15 min cut off, is likely 0. Most passengers have a few hours between connecting flights and 15 min delay will not require any action.
+# MAGIC - The cost of small delay, a few minutes over 15 min cut off, is likely 0. Most passengers have a few hours between connecting flights and 15 min delay does not need any action.
 # MAGIC - The cost of action in case of the delayed flight can not be 0. If airline decides to act on the model prediction, some resources will be spent on acting on this prediction. 
 # MAGIC
-# MAGIC Based on these assumptions we conclude that low recall is more tolerable than low precision. Lots of flights mislabeled as delayed will inevityably result in noticible cost, while some flights that model misses will likely not casue any problem. At the same time, if the recall is very low and the model misses most delayed flights, there will be instances when the model overlooks a significant delay. Large cost will be incured by the airline and they will stop using this model after just a few of these costly mistakes. Without in-depth domain knowledge we decided that 80% recall is an accpetable compromise.
+# MAGIC Based on these assumptions we conclude that low recall is more tolerable than low precision. Lots of flights mislabeled as delayed will inevitably result in noticible cost (i.e. accumulating many flase positives becomes expensive). On the other hand, flights that model misses will likely not casue any problem (i.e. flase negatives are mostly cheap). At the same time, if the recall is very low and the model misses most delayed flights, there will be instances when the model overlooks a significant delay. Large cost will be incured by the airline and they will stop using this model after just a few of these costly mistakes (i.e. there are rare false neagtives that are expensive). Without in-depth domain knowledge we postulated that 80% recall is an accpetable compromise.
 # MAGIC
-# MAGIC With this accptably low recall we will optimise our models to achive maximum precision. This way the airline can be certain that the flight flagged as delayed is actually going to be delayed and the resources expended on dealing with the delay are not spent in vain. At the same time, the airline can continue using its current practices to deal with the few short delays overlooked by the model.
+# MAGIC With this acceptably low recall we will optimise our models to achive maximum precision. This way the airline can be certain that the flight flagged as delayed is actually going to be delayed and the resources expended on dealing with the delay are not spent in vain. At the same time, the airline can continue using its current practices to deal with the few short delays overlooked by the model.
 # MAGIC
 
 # COMMAND ----------
@@ -144,15 +161,16 @@
 # MAGIC ## Conclusion and Next Steps
 # MAGIC [Bailey]
 # MAGIC
-# MAGIC ### Challenges
+# MAGIC #### Challenges
 # MAGIC - Seasonality of data
+# MAGIC - COVID period at the end of data
 # MAGIC - Efficiency of operations on large data
 # MAGIC - Missing data
 # MAGIC
-# MAGIC ### Conclusions 
+# MAGIC #### Conclusions 
 # MAGIC - TBD
 # MAGIC
-# MAGIC ### Next Steps
+# MAGIC #### Next Steps
 # MAGIC - In depth ETA on joined dataset
 # MAGIC - Feature selection and engineering
 # MAGIC - Generating a baseline
