@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from pyspark.sql.functions import sum,avg,max,count
 
 # COMMAND ----------
 
@@ -29,7 +30,7 @@ df_to_plot = df_NYC_weather[['DATE','DailyAverageWindSpeed']].dropna()
 
 # COMMAND ----------
 
-# Convert to pandas, fix datatypes
+# Convert weather to pandas, fix datatypes
 df_to_plot = df_to_plot.toPandas()
 df_to_plot['DATE'] = pd.to_datetime(df_to_plot['DATE'])
 df_to_plot['DailyAverageWindSpeed'] = pd.to_numeric(df_to_plot['DailyAverageWindSpeed'], errors =  'coerce')
@@ -39,25 +40,53 @@ df_to_plot.head()
 
 # COMMAND ----------
 
- # Instantiate figure and axis
-num_rows = 1
+# Read full dataset, get only daily data for NYC
+df_flights = spark.read.parquet(f"dbfs:/mnt/mids-w261/datasets_final_project_2022/parquet_airlines_data/")
+JFK_codes = ['1247801', '1247802','1247803','1247804','1247805']
+df_JFK_flights = df_flights.filter(df_flights['ORIGIN_AIRPORT_SEQ_ID'].isin(JFK_codes) )
+
+# COMMAND ----------
+
+delays_to_plot = df_JFK_flights[['FL_DATE','DEP_DELAY']].dropna()
+delays_to_plot.head()
+
+# COMMAND ----------
+
+JFK_delays_daily = delays_to_plot.groupBy('FL_DATE') \
+                    .agg(avg('DEP_DELAY').alias("avg_delay"), \
+                        max('DEP_DELAY').alias("max_delay") ) \
+                    .toPandas()
+JFK_delays_daily.columns = ['Date', 'Mean_delay', 'Max_delay']
+
+JFK_delays_daily.head()
+
+# COMMAND ----------
+
+JFK_delays_daily['Date'] = pd.to_datetime(JFK_delays_daily['Date'])
+
+# COMMAND ----------
+
+# Instantiate figure and axis
+num_rows = 2
 num_columns = 1
-fig, axes = plt.subplots()
+fig, axes = plt.subplots(num_rows, num_columns)
 #Adjust space between plots in the figure
-# plt.subplots_adjust(hspace = 1)
+plt.subplots_adjust(hspace = 0.5)
 
 #Fill the axis with data
-axes.scatter(df_to_plot.Date, df_to_plot.Wind)  
+axes[0].scatter(df_to_plot.Date, df_to_plot.Wind)  
+axes[1].scatter(JFK_delays_daily.Date, JFK_delays_daily.Max_delay) 
 
 #Set title and axis legend, only set axis legend on the sides
-axes.set_title("Wind at JFK")
+axes[0].set_title("Wind at JFK")
+axes[1].set_title("Max delay")
 
 # Remove the bounding box to make the graphs look less cluttered
-axes.spines['right'].set_visible(False)
-axes.spines['top'].set_visible(False)
+#axes[0].spines['right'].set_visible(False)
+#axes[0].spines['top'].set_visible(False)
 #Format ticks
-for tick in axes.get_xticklabels():
-    tick.set_rotation(45)
+#for tick in axes[0].get_xticklabels():
+#    tick.set_rotation(45)
 plt.show()
 
 # COMMAND ----------
@@ -75,12 +104,7 @@ print(f"The 3 month subsample has {df_otpw.count()} total records.")
 
 # COMMAND ----------
 
-# Get a panda's dataframe with the daily windspeed
-df_to_plot = df_weather[['DATE','DailyAverageWindSpeed']].toPandas()
-df_to_plot['DATE'] = pd.to_datetime(df_to_plot['DATE'])
-df_to_plot['DailyAverageWindSpeed'] = df_to_plot['DailyAverageWindSpeed'].astype('float')
-df_to_plot.dropna(inplace = True)
-df_to_plot.head()
+
 
 # COMMAND ----------
 
