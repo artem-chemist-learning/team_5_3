@@ -14,37 +14,14 @@
 # Import statements
 import pandas as pd
 import numpy as np
-from pyspark.sql.functions import udf
+from pyspark.sql.functions import udf, isnan, when, count, col
 from pyspark.sql.types import StringType, IntegerType, FloatType
 import pyspark.sql.functions as F
 from pyspark.sql import types
 #import sum,avg,max,count
 
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Weather Data
-
-# COMMAND ----------
-
-# Read full weather dataset
+#set path 
 mids261_mount_path = "/mnt/mids-w261"
-df_weather = spark.read.parquet(f"dbfs:{mids261_mount_path}/datasets_final_project_2022/parquet_weather_data/")
-df_weather.display()
-
-# 3 month weather
-df_weather_3 = spark.read.parquet(f"dbfs:/mnt/mids-w261/datasets_final_project_2022/parquet_weather_data_3m/")
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Airline Data
-
-# COMMAND ----------
-
-# Read full airline dataset
-df_flights = spark.read.parquet(f"dbfs:{mids261_mount_path}/datasets_final_project_2022/parquet_airlines_data/")
-df_flights.display()
 
 # COMMAND ----------
 
@@ -67,8 +44,36 @@ df_combined_3.display()
 
 # COMMAND ----------
 
-#df_combined_3.show(df_combined_3.count(), truncate = True)
-df_combined_3.describe().display()
+# First, we take a look at how many nulls are in each column
+# nulls
+null_vals = df_combined_3.select([count(when(col(c).isNull(), c)).alias(c) for c in df_combined_3.columns])
+null_vals.display()
+
+# COMMAND ----------
+
+# Let's calculate percentage of nulls for each field, given the nulls and count of each field
+data_size = int(df_combined_3.count())
+
+null_percents = df_combined_3.select([(100.0 * count(when(col(c).isNull(), c))/data_size).alias(c) for c in df_combined_3.columns])
+null_percents.display()
+
+# COMMAND ----------
+
+# Filtering out columns where there were more than 90% of the data missing
+null_per_t = null_percents.toPandas().T.reset_index(drop=False)
+null_per_t = null_per_t[null_per_t[0] > 90]
+null_per_t
+
+# COMMAND ----------
+
+# Lastly, we will drop columns that have too many nulls so that we can ignore them in casting
+drop_cols = null_per_t['index'].tolist()
+drop_cols
+
+# COMMAND ----------
+
+# As one extra step, we can also check for nans, but there don't appear to be any
+df_combined_3.select([count(when(isnan(c), c)).alias(c) for c in df_combined_3.columns]).display()
 
 # COMMAND ----------
 

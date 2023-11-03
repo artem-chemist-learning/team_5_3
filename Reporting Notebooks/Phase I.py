@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Predicting Airline Delays
+# MAGIC # Predicting Airline Delays: Phase 1 Proposal
 
 # COMMAND ----------
 
@@ -9,7 +9,7 @@
 # MAGIC <pre>     Artem Lebedev          Lucy Moffitt Herr          Erik Sambrailo           Bailey Kuehl<pre>
 # MAGIC  artem.lebedev@berkeley.edu       lherr@berkeley.edu          e.sambrail0@berkeley.edu      bkuehl@berkeley.edu
 # MAGIC <div>
-# MAGIC <img src="files/tables/art.png" width="200"/> <img src="files/tables/lucy.png" width="200"/> <img src="files/tables/erik.png" width="200"/> <img src="files/tables/bailey.png" width="200"/>
+# MAGIC <img src="files/tables/art.png" width="200"> <img src="files/tables/lucy.png" width="200"> <img src="files/tables/erik.png" width="200"> <img src="files/tables/bailey.png" width="200">
 # MAGIC </div>
 # MAGIC
 
@@ -83,31 +83,43 @@
 # MAGIC %md
 # MAGIC ## Summary of Data
 # MAGIC
-# MAGIC #### Quantitative (mean, std)
-# MAGIC [Bailey]
+# MAGIC #### Nulls
+# MAGIC In the combined weather / airline 3 month dataset, there are **92 columns** that had missing (null) values for > 90% of the entries. We have chosen 90% as the maximum allowable threshold nulls and use this as a feature selection method. Below are some features which have been dropped due to exceeding the threshold:
 # MAGIC
-# MAGIC #### Visuals
+# MAGIC |Feature|% Nulls| 
+# MAGIC |---|---|
+# MAGIC |ShortDuration . . .| 100%|
+# MAGIC |Monthly . . .| 100%|
+# MAGIC |. . .|. . .|
+# MAGIC |DailySnowDepth| 99.84%|
+# MAGIC |DailyPrecipitation|99.77%|
+# MAGIC |DailySustainedWindSpeed|99.77%|
 # MAGIC
-
-# COMMAND ----------
-
-from IPython.display import Image
-Image(filename='../Code/Correlation of delays and weather.jpg', width=600, height=900) 
-
-# COMMAND ----------
-
-Image(filename='../Code/Correlation of delays and weather.jpg', width=300, height=300) 
+# MAGIC This leaves us with 124 remaining features to use for modeling.
+# MAGIC
+# MAGIC #### Statistics
+# MAGIC
+# MAGIC |Feature|Mean|Std Dev|Range
+# MAGIC |---|---|---|---|
+# MAGIC |---|---|---|---|
+# MAGIC
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Algorithms to be explored
-# MAGIC
-# MAGIC Which machine learning algorithm(s) are you considering using and why?
-# MAGIC
-# MAGIC Description of algorithms to be used (list the names, implementations, loss functions that you will use)
-# MAGIC Description of metrics and analysis to be used (be sure to include the equations for the metrics)
-# MAGIC
+# MAGIC #### Visuals
+
+# COMMAND ----------
+
+from IPython.display import Image
+Image(filename='../Code/Delays and weather at daily levels.jpg', width=600, height=900) 
+
+# COMMAND ----------
+
+Image(filename='../Code/Correlation of delays and weather.jpg', width=400, height=300) 
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ## Train Test Split
 # MAGIC [Bailey]
@@ -150,14 +162,77 @@ Image(filename='../Code/Correlation of delays and weather.jpg', width=300, heigh
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Gant chart
-# MAGIC A block diagram (Gantt diagram) of the key steps involved in completing this task and a timeline
+# MAGIC ## Gantt chart & Credit Assignment Table
+# MAGIC
+# MAGIC ## Credit assignment plan 
+# MAGIC Set up the tasks to be completed by phase; estimate the effort in terms of person-hours to complete the task, and assign the person responsible for that task
+# MAGIC
+# MAGIC Below is our project timeline, showing the anticipated duration for each step in order to successfully complete the project by the provided deadlines. We have assigned preliminary roles for each of the phases and subsequent tasks.  We will continue to review and adapt this as the project evolves. 
+# MAGIC
+# MAGIC |Task|Phase|Person|Hours
+# MAGIC |---|---|---|---|
+# MAGIC |Blob setup|1|Art||
+# MAGIC |Select Eval Metrics|1|Art||
+# MAGIC |Gantt Chart|1|Erik||
+# MAGIC |Explain Data - Weather|1|Erik||
+# MAGIC |Explain Data - Airlines|1|Lucy||
+# MAGIC |Algorithm|1|Lucy, Erik||
+# MAGIC |Train, test split|1|Bailey|1.5|
+# MAGIC |Abstract|1|Bailey|0.5|
+# MAGIC |Conclusions, challenges, next steps|1|Bailey|0.5|
+# MAGIC ||2|Art||
+# MAGIC ||2|Erik||
+# MAGIC ||2|Lucy||
+# MAGIC ||2|Bailey||
+# MAGIC ||3|Art||
+# MAGIC ||3|Erik||
+# MAGIC ||3|Lucy||
+# MAGIC ||3|Bailey||
+# MAGIC
+# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/9db8444ed381fce9624ae60f622e7ccd10187f67/Code/Delays%20and%20weather%20at%20daily%20levels.jpg?raw=true" width="200">
 
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Algorithms
+# MAGIC Which machine learning algorithm(s) are you considering using and why?
+# MAGIC
+# MAGIC Description of algorithms to be used (list the names, implementations, loss functions that you will use)
+# MAGIC Description of metrics and analysis to be used (be sure to include the equations for the metrics)
+# MAGIC
+# MAGIC 1) Logistic Regression w. Lasso
+# MAGIC 2) Random Forest (XGBoost?)
+# MAGIC 3) 
+# MAGIC
 # MAGIC ## Pipeline
 # MAGIC Description of the pipeline steps you plan to use (and a block diagram)
+# MAGIC
+# MAGIC ### 1. Data cleaning and preprocessing
+# MAGIC
+# MAGIC * Determine outliers and nulls in the data
+# MAGIC * Encode categorical features
+# MAGIC * Scale numerical features
+# MAGIC
+# MAGIC ### 2. Feature selection
+# MAGIC
+# MAGIC * Data points that have > 90% nulls will be dropped
+# MAGIC * Logistic Rssion with Lasso Regularization for remaining features
+# MAGIC * Use univariate feature selection, recursive feature elimination, or random forest feature importance
+# MAGIC
+# MAGIC ### 3. Model training
+# MAGIC
+# MAGIC * rain a machine learning model to predict delays more than 15 minutes
+# MAGIC * Use logistic regression, decision trees, random forests, or support vector machines
+# MAGIC
+# MAGIC ### 4. Model evaluation
+# MAGIC
+# MAGIC * Evaluate the performance of the trained model on a holdout dataset
+# MAGIC * Use accuracy, precision, recall, or F1 score
+# MAGIC
+# MAGIC ### 5. Model deployment
+# MAGIC
+# MAGIC * Deploy the trained model to a production environment
+# MAGIC * Deploy the model as a web service or as a mobile app
 # MAGIC
 
 # COMMAND ----------

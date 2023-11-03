@@ -145,7 +145,7 @@ ax.set_title('Correlation of delays and weather')
 # Loop over data dimensions and create text annotations.
 for i in range(len(features)):
     for j in range(len(features)):
-        text = ax.text(j, i, corr_mtx.iloc[i, j],
+        text = ax.text(j, i, round(corr_mtx.iloc[i, j],2),
                        ha="center", va="center", color="w")
 
 fig.savefig(f"Correlation of delays and weather.jpg", bbox_inches='tight', dpi = 300)
@@ -153,7 +153,7 @@ plt.show()
 
 # COMMAND ----------
 
-plot_pacf(df_to_plot.Mean_delay, lags = 14)
+plot_acf(df_to_plot.Mean_delay, lags = 50)
 plt.show()
 
 # COMMAND ----------
