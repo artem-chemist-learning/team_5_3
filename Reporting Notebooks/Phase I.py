@@ -9,7 +9,7 @@
 # MAGIC <pre>     Artem Lebedev          Lucy Moffitt Herr          Erik Sambrailo           Bailey Kuehl<pre>
 # MAGIC  artem.lebedev@berkeley.edu       lherr@berkeley.edu          e.sambrail0@berkeley.edu      bkuehl@berkeley.edu
 # MAGIC <div>
-# MAGIC <img src="files/tables/art.png" width="200"> <img src="files/tables/lucy.png" width="200"> <img src="files/tables/erik.png" width="200"> <img src="files/tables/bailey.png" width="200">
+# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/art.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/lucy.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/erik.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/bailey.png?raw=true" width="200">
 # MAGIC </div>
 # MAGIC
 
