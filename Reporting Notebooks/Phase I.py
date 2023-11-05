@@ -135,16 +135,21 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Visuals
-
-# COMMAND ----------
-
-from IPython.display import Image
-Image(filename='../Code/Delays and weather at daily levels.jpg', width=600, height=900) 
-
-# COMMAND ----------
-
-Image(filename='../Code/Correlation of delays and weather.jpg', width=400, height=300) 
+# MAGIC ## Dealys and weather at JFK at daily level
+# MAGIC <br>
+# MAGIC <html>
+# MAGIC   <body>
+# MAGIC     <div style="text-align: center;">
+# MAGIC       <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/Delays and weather at daily levels.jpg?raw=true" width="400">
+# MAGIC    </div>
+# MAGIC   </body>
+# MAGIC   <body>
+# MAGIC     <div style="text-align: center;">
+# MAGIC       <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/Correlation of delays and weather.jpg?raw=true" width="400">
+# MAGIC    </div>
+# MAGIC   </body>
+# MAGIC </html>
+# MAGIC <br>
 
 # COMMAND ----------
 
@@ -158,9 +163,9 @@ Image(filename='../Code/Correlation of delays and weather.jpg', width=400, heigh
 # MAGIC
 # MAGIC Thus, we divide the training set into two folds at each iteration such that the validation set is always ahead of the training set. 
 # MAGIC
-# MAGIC Resources:    
-# MAGIC https://medium.com/@soumyachess1496/cross-validation-in-time-series-566ae4981ce4#:~:text=Cross%20Validation%20
-# MAGIC https://hub.packtpub.com/cross-validation-strategies-for-time-series-forecasting-tutorial/
+# MAGIC A blogpost <a href="https://medium.com/@soumyachess1496/cross-validation-in-time-series-566ae4981ce4#:~:text=Cross%20Validation%20">on medium</a> and <a href="https://hub.packtpub.com/cross-validation-strategies-for-time-series-forecasting-tutorial/">this tutorial</a> have detailed outline of the process
+# MAGIC
+# MAGIC
 
 # COMMAND ----------
 
@@ -215,44 +220,40 @@ Image(filename='../Code/Correlation of delays and weather.jpg', width=400, heigh
 # MAGIC
 # MAGIC ### 1. Data cleaning and preprocessing
 # MAGIC
-# MAGIC * Determine outliers and nulls in the data
+# MAGIC * Re-format data into correct datatypes
+# MAGIC * Eliminate features with >90% null observations
 # MAGIC * Encode categorical features
-# MAGIC * Scale numerical features
+# MAGIC * Normalize numerical features
+# MAGIC * Impute misssing data
 # MAGIC
 # MAGIC ### 2. Feature selection
 # MAGIC
 # MAGIC * Data points that have > 90% nulls will be dropped
-# MAGIC * Logistic Rssion with Lasso Regularization for remaining features
-# MAGIC * Use univariate feature selection, recursive feature elimination, or random forest feature importance
+# MAGIC * Use Logistic Regression with Lasso Regularization to select features with large weights
 # MAGIC
 # MAGIC ### 3. Model training
 # MAGIC
-# MAGIC * rain a machine learning model to predict delays more than 15 minutes
-# MAGIC * Use logistic regression, decision trees, random forests, or support vector machines
+# MAGIC * Train a Baseline statistical model predicting average delay time for all flights. 
+# MAGIC * Train a Random Forest model to predict delays more than 15 minutes
 # MAGIC
 # MAGIC ### 4. Model evaluation
 # MAGIC
 # MAGIC * Evaluate the performance of the trained model on a holdout dataset
-# MAGIC * Use accuracy, precision, recall, or F1 score
+# MAGIC * Use precision at 80% recall to compare baseline, logistic regression and random forest.
 # MAGIC
-# MAGIC ### 5. Model deployment
-# MAGIC
-# MAGIC * Deploy the trained model to a production environment
-# MAGIC * Deploy the model as a web service or as a mobile app
 # MAGIC
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Algorithms
-# MAGIC Which machine learning algorithm(s) are you considering using and why?
+# MAGIC Baseline algorim will be based on the delays at the airport of departure observed over last four hours. If the airport had less than 3 departueres in that timewindow, the departures from all airports located in the same state will be used. This algorithm requires no machine learning at all, yet allows us to implement our success metric. Given the set of delays that occured over the last 4 hours, we can hypothesize that mean of that distribution is below 15 min. If a one-tail hypothesis test rejects this hypothesis, we predict a delay. Adjusting confidence level of the test we can control precision and recall of this model. Once we find confidence level such that recal is >= 80% we will compute precision of this model and use it as a benchmark.
 # MAGIC
-# MAGIC Description of algorithms to be used (list the names, implementations, loss functions that you will use)
-# MAGIC Description of metrics and analysis to be used (be sure to include the equations for the metrics)
+# MAGIC Logistic regression (LR) will be the first machine learning algorithm that we will use. We will train the model using traditional Binary Cross Entropy as loss function. We also consider using lasso regularization to combat overfitting. Using L1 as opposed to L2 at this stage will allow us to use LR as a feature selector for more sophisticated models. Initially, we will train on all avaliable features and expect to have most of them to have very low weights. In the  future exploration we will use features with weights above certian cut-off, that we will define later. To calcualte the sucess metric we will adjust the decision cut off so that the recall is ~80% and then use precision at this cut-off to compare LR performance to baseline model.
 # MAGIC
-# MAGIC 1) Logistic Regression using current precipitation and the last delay status of thei tailnumber as a baseline 
-# MAGIC 2) Random Forest (XGBoost?)
-# MAGIC 3) FaceBook Prophet
+# MAGIC We also plan to explore more sophisticated algorithms such as Random Forest, possibly with gradient boosting. We will use features identified as significant using Logistic funcation. An issue with RF is that its precision/recall balance is adjusted using hyper-parameters used in model training and computationally expensive re-training is needed to find parameters that correspond to 80% recall. Therefore we will use 3-month subsection of dataset to adjust number of trees in the foreset, max number of levels in each decision tree and other hyperparameters to achieve ~ 80% recall. <a href="https://towardsdatascience.com/fine-tuning-a-classifier-in-scikit-learn-66e048c21e65">This post</a> gives a conceptual overview of the process. We will then use thse hyperparameters to train on the full dataset and hope that the resulting recall will be close to 80%. We will use precision achieved with these hyperprameters to compare to the sucess metrics of the baseline and LR models.
+# MAGIC
+# MAGIC As a potential alternative we will consider using Facebook prophet, which is specifically deigned to deal with timeseries with pronounced seasonality and has a potential to outperform other models. 
 
 # COMMAND ----------
 
