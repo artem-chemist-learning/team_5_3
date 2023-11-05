@@ -29,34 +29,6 @@
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC
-# MAGIC ## Credit assignment plan 
-# MAGIC Set up the tasks to be completed by phase; estimate the effort in terms of person-hours to complete the task, and assign the person responsible for that task
-# MAGIC
-# MAGIC |Task|Phase|Person|Hours
-# MAGIC |---|---|---|---|
-# MAGIC |Blob setup|1|Art||
-# MAGIC |Select Eval Metrics|1|Art||
-# MAGIC |Gantt Chart|1|Erik||
-# MAGIC |Explain Data - Weather|1|Erik||
-# MAGIC |Explain Data - Airlines|1|Lucy||
-# MAGIC |Algorithm|1|Lucy, Erik||
-# MAGIC |Train, test split|1|Bailey|1.5|
-# MAGIC |Abstract|1|Bailey|0.5|
-# MAGIC |Conclusions, challenges, next steps|1|Bailey|0.5|
-# MAGIC ||2|Art||
-# MAGIC ||2|Erik||
-# MAGIC ||2|Lucy||
-# MAGIC ||2|Bailey||
-# MAGIC ||3|Art||
-# MAGIC ||3|Erik||
-# MAGIC ||3|Lucy||
-# MAGIC ||3|Bailey||
-# MAGIC
-
-# COMMAND ----------
-
 # MAGIC %md 
 # MAGIC
 # MAGIC ## Abstract
@@ -74,8 +46,64 @@
 # MAGIC [Lucy]
 # MAGIC
 # MAGIC
-# MAGIC #### Weather 
-# MAGIC [Erik]
+# MAGIC #### Weather
+# MAGIC
+# MAGIC The weather dataset comes from NOAA (National Oceanic and Atmospheric Administration).  After review of their website, various datasets, and documentation, we found that our dataset best aligns with their Local Climatological Data (LCD) dataset.  This dataset consists of hourly, daily and monthly weather observation summaries.  Below is a table showing the general sections of features, some examples from each, and our understanding of those features.  
+# MAGIC   
+# MAGIC <br>
+# MAGIC <html>
+# MAGIC   <head>
+# MAGIC     <title><b>Weather Dataset Features<b/></title>
+# MAGIC   </head>
+# MAGIC   <body>
+# MAGIC     <div style="text-align: center;">
+# MAGIC       <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/weather_features.png?raw=true" width="800">
+# MAGIC    </div>
+# MAGIC   </body>
+# MAGIC </html>
+# MAGIC <br>
+# MAGIC
+# MAGIC An important discovery from our review of the documentation of this dataset is how the hourly, daily, and monthly values are populated in the dataset. The LCD documenation states: "After each day’s hourly observations, the daily data for that day is given in the following row and monthly data is in the row following the final hourly observations for the last day in the month."  To better understand this we reviewed all weather observations for a specific station **Los Angeles Airport (LAX)** for a specific day **1/10/15**.  There were a total of 40 observations recorded that specific day, accross (4) different report types. Each report type had varied observation frequencies and features included. Below is a table showing those details. There was a clear delineation between the records that held hourly vs. daily observations.
+# MAGIC
+# MAGIC <br>
+# MAGIC <html>
+# MAGIC   <head>
+# MAGIC     <title><b>LAX - 1/10/15: Weather Observations<b/></title>
+# MAGIC   </head>
+# MAGIC   <body>
+# MAGIC     <div style="text-align: center;">
+# MAGIC       <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/lax_weather_sample_20150110.png?raw=true" width="400">
+# MAGIC     </div>
+# MAGIC   </body>
+# MAGIC </html>
+# MAGIC <br>
+# MAGIC
+# MAGIC #### Join Logic
+# MAGIC
+# MAGIC **Location**
+# MAGIC
+# MAGIC After our review of the separate flight and weather datasets, we then sought to understand the logic used for the join of the combined datasets.  Every record of the joined dataset consists of flight information, as well as weather station information representative for both the arriving and departing airports.  From this knowledge, it is our general assumption that a mapping was performed to join each airport to a corresponding weather station, likely by closest proximity using longitude and latitude coordinates.
+# MAGIC
+# MAGIC While the weather station information is populated for both the departing and arriving airports, the actual weather observations are only provided for the departing airport. 
+# MAGIC
+# MAGIC **Time**
+# MAGIC
+# MAGIC From are review of the raw weather data, and the understanding of composition, the time-based logic used for the join needed to be understood.  We knew that each flight record was only being joined to one weather observation record.  What we sought to understand is what logic was used for time. A small sample of the time-based components of the joined dataset is presented below. Based off this sample, it appears that the "4 hours prior departure (UTC)" timestamp was used to find the next available corresponding timestamp in the weather data table. 
+# MAGIC
+# MAGIC <br>
+# MAGIC <html>
+# MAGIC   <head>
+# MAGIC     <title><b>Time-Based Components</b></title>
+# MAGIC   </head>
+# MAGIC   <body>
+# MAGIC     <div style="text-align: center;">
+# MAGIC       <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/timejoin_sample.png?raw=true" width="700">
+# MAGIC     </div>
+# MAGIC   </body>
+# MAGIC </html>
+# MAGIC <br>
+# MAGIC
+# MAGIC Based on this logic, that means that flights may be joined to inconsistent types of weather observations, soley based on the timing of that specific flight.  Most flights will be joined to hourly records, while others may coincidentally be joined to other reported summaries (like daily summaries).  Additionally, the documentation for the weather data also stated that timestamps are in local time zones, whereas the weather data appears to be in UTC. Further exploration will be needed to better understand the join logic used and it's implications. Next we speak to summary statistics for the joined dataset. 
 # MAGIC
 
 # COMMAND ----------
@@ -162,50 +190,28 @@ Image(filename='../Code/Correlation of delays and weather.jpg', width=400, heigh
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Gantt chart & Credit Assignment Table
+# MAGIC ## Gantt Chart & Credit Assignment Table
 # MAGIC
-# MAGIC ## Credit assignment plan 
-# MAGIC Set up the tasks to be completed by phase; estimate the effort in terms of person-hours to complete the task, and assign the person responsible for that task
+# MAGIC Below is our project plan, timeline, and credit assignment table.  We have broken down the project into phases and subsequent tasks and assigned a lead for each. We have anticipated the workout and time duration for each step in order to successfully complete the project by the provided deadlines. We plan to use this to guage our pace and progress on the project and will update as the project evolves. 
 # MAGIC
-# MAGIC Below is our project timeline, showing the anticipated duration for each step in order to successfully complete the project by the provided deadlines. We have assigned preliminary roles for each of the phases and subsequent tasks.  We will continue to review and adapt this as the project evolves. 
-# MAGIC
-# MAGIC |Task|Phase|Person|Hours
-# MAGIC |---|---|---|---|
-# MAGIC |Blob setup|1|Art||
-# MAGIC |Select Eval Metrics|1|Art||
-# MAGIC |Gantt Chart|1|Erik||
-# MAGIC |Explain Data - Weather|1|Erik||
-# MAGIC |Explain Data - Airlines|1|Lucy||
-# MAGIC |Algorithm|1|Lucy, Erik||
-# MAGIC |Train, test split|1|Bailey|1.5|
-# MAGIC |Abstract|1|Bailey|0.5|
-# MAGIC |Conclusions, challenges, next steps|1|Bailey|0.5|
-# MAGIC ||2|Art||
-# MAGIC ||2|Erik||
-# MAGIC ||2|Lucy||
-# MAGIC ||2|Bailey||
-# MAGIC ||3|Art||
-# MAGIC ||3|Erik||
-# MAGIC ||3|Lucy||
-# MAGIC ||3|Bailey||
-# MAGIC
-# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/9db8444ed381fce9624ae60f622e7ccd10187f67/Code/Delays%20and%20weather%20at%20daily%20levels.jpg?raw=true" width="200">
+# MAGIC <br>
+# MAGIC <html>
+# MAGIC   <head>
+# MAGIC     <title><b>Project Plan & Timeline<b/></title>
+# MAGIC   </head>
+# MAGIC   <body>
+# MAGIC     <div style="text-align: center;">
+# MAGIC       <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/Gant_%26_Credit_Plan.png?raw=true" width="1600">
+# MAGIC    </div>
+# MAGIC   </body>
+# MAGIC </html>
+# MAGIC <br>
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Algorithms
-# MAGIC Which machine learning algorithm(s) are you considering using and why?
-# MAGIC
-# MAGIC Description of algorithms to be used (list the names, implementations, loss functions that you will use)
-# MAGIC Description of metrics and analysis to be used (be sure to include the equations for the metrics)
-# MAGIC
-# MAGIC 1) Logistic Regression w. Lasso
-# MAGIC 2) Random Forest (XGBoost?)
-# MAGIC 3) 
 # MAGIC
 # MAGIC ## Pipeline
-# MAGIC Description of the pipeline steps you plan to use (and a block diagram)
 # MAGIC
 # MAGIC ### 1. Data cleaning and preprocessing
 # MAGIC
@@ -234,6 +240,19 @@ Image(filename='../Code/Correlation of delays and weather.jpg', width=400, heigh
 # MAGIC * Deploy the trained model to a production environment
 # MAGIC * Deploy the model as a web service or as a mobile app
 # MAGIC
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Algorithms
+# MAGIC Which machine learning algorithm(s) are you considering using and why?
+# MAGIC
+# MAGIC Description of algorithms to be used (list the names, implementations, loss functions that you will use)
+# MAGIC Description of metrics and analysis to be used (be sure to include the equations for the metrics)
+# MAGIC
+# MAGIC 1) Logistic Regression using current precipitation and the last delay status of thei tailnumber as a baseline 
+# MAGIC 2) Random Forest (XGBoost?)
+# MAGIC 3) FaceBook Prophet
 
 # COMMAND ----------
 
