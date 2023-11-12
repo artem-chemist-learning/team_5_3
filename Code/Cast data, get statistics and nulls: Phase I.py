@@ -14,10 +14,11 @@
 # Import statements
 import pandas as pd
 import numpy as np
-from pyspark.sql.functions import udf, isnan, when, count, col
-from pyspark.sql.types import StringType, IntegerType, FloatType
+from pyspark.sql.functions import udf, isnan, when, count, col, regexp_extract
+from pyspark.sql.types import StringType, IntegerType, FloatType, BooleanType
 import pyspark.sql.functions as F
 from pyspark.sql import types
+import re
 #import sum,avg,max,count
 
 #set path 
@@ -77,6 +78,12 @@ df_combined_3.select([count(when(isnan(c), c)).alias(c) for c in df_combined_3.c
 
 # COMMAND ----------
 
+# Now, we drop the columns with too many nulls
+df_combined_3 = df_combined_3.drop(*drop_cols)
+df_combined_3.display()
+
+# COMMAND ----------
+
 # MAGIC %md 
 # MAGIC #### Cast correct datatypes
 
@@ -127,5 +134,14 @@ df_combined_3.printSchema()
 
 # COMMAND ----------
 
+# Check if the first character is a digit
+first_record = df_combined_3.collect()[0]
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC #### Get mean, std dev, ranges on numeric columns
+
+# COMMAND ----------
+
+ df_combined_3.describe().display()
