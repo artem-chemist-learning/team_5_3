@@ -12,8 +12,6 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pyspark.sql.window import Window
 from pyspark.sql.functions import to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-import pytz
 
 # COMMAND ----------
 
