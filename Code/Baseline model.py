@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pyspark.sql.window import Window
-from pyspark.sql.functions import to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum
+from pyspark.sql.functions import to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum, rand, when
 
 # COMMAND ----------
 
@@ -60,7 +60,7 @@ otpw_to_process = otpw_to_process.withColumn('datetime', to_timestamp(otpw_to_pr
 # Window will partition by the airport
 # go for 4 hours and stop just before the flight in question
 hours = lambda i: i * 3600
-WindowSpec = (Window.partitionBy('ORIGIN').orderBy(col('datetime').cast('long')).rangeBetween(-hours(4), -1))
+WindowSpec = (Window.partitionBy('ORIGIN').orderBy(col('datetime').cast('long')).rangeBetween(-hours(4), -hours(2)))
 
 # Calculate average delay over that window
 otpw_to_process = otpw_to_process.withColumn('predicted_delay', _mean("DEP_DELAY").over(WindowSpec)).dropna()
@@ -118,7 +118,8 @@ def prec_rec(cut_off, num_positive, data):
 
     return precision, recall
 results = []
-for i in [-0.5, 0, 1, 2, 3, 5, 10, 30, 60, 120]:
+cut_offs = [-3, 0, 2, 3, 5, 10, 30, 60]
+for i in cut_offs:
     results.append(prec_rec(i, Positive, otpw_to_process))
 
 results_pd = pd.DataFrame(results)
@@ -127,17 +128,41 @@ results_pd
 
 # COMMAND ----------
 
-results_pd.plot.scatter()
+# Make random preditions, given probability of prediction
+def random_prec_rec(prob, num_positive, data):
+
+    data = data.withColumn('rnd_pred', when(rand(seed = 42) > prob, True).otherwise(False))
+
+    df_pred_stats = data.select(
+        _sum(  (data.rnd_pred & data.delayed    ).cast('integer') ).alias('TP'),
+        _sum(  (data.rnd_pred & ( ~data.delayed) ).cast('integer') ).alias('FP')
+    ).collect()
+
+    TP = df_pred_stats[0]['TP']
+    FP = df_pred_stats[0]['FP']
+
+    precision = 100*TP/(TP+FP)
+    recall = 100*TP/num_positive
+
+    return precision, recall
+results = []
+probs =  [0, 0.20, 0.40, 0.60, 0.80, 0.99]
+for i in probs:
+    results.append(random_prec_rec(i, Positive, otpw_to_process))
+
+results_pd_rnd = pd.DataFrame(results)
+results_pd_rnd.columns = ['Precision', 'Recall']
+results_pd_rnd
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #Make graph for raw data
+# MAGIC #Make precision/recall graphs for two models
 
 # COMMAND ----------
 
 # Instantiate figure and axis
-num_rows = 2
+num_rows = 1
 num_columns = 1
 fig, axes = plt.subplots(num_rows, num_columns, sharex=True)
 fig.set_figheight(10)
@@ -146,20 +171,33 @@ plt.subplots_adjust(hspace = 0.2)
 
 
 #Fill the axis with data
-axes[0].plot(results_pd.Precision, results_pd.Recall, label = "Precision/Recall", color = 'g')  
-axes[1].scatter(results_pd.Precision, results_pd.Recall, label = "Precision/Recall", color = 'g') 
+axes.plot(results_pd.Recall, results_pd.Precision, label = "Previous flights", color = 'g')
+axes.scatter(results_pd.Recall, results_pd.Precision,  label = "Cut off, min", color = 'g')   
+axes.plot(results_pd_rnd.Recall, results_pd_rnd.Precision, label = "Random", color = 'r') 
+axes.scatter (results_pd_rnd.Recall, results_pd_rnd.Precision, label = "Probability", color = 'r') 
+
+
+axes.axvline(x=80, ymin=0.05, ymax=0.65, color='b', ls = '--')
+axes.text(70, 50, '80% Recall', size=12)
 
 #Set title and axis legend, only set axis legend on the sides
-axes[0].legend(loc = 'upper right')
-axes[1].legend(loc = 'upper right')
+axes.legend(loc = 'upper left')
 
-axes[0].set_ylabel('Recall')
-axes[1].set_ylabel('Recall')
-axes[1].set_xlabel('Precision')
+#axes[0].set_ylabel('Precision')
+axes.set_ylabel('Precision')
+axes.set_xlabel('Recall')
+axes.set_ylim(5, 70)
+
+for index in range(len(cut_offs)):
+  axes.text(results_pd.Recall[index]-0.02, 1 + results_pd.Precision[index], cut_offs[index], size=12)
+for index in range(len(probs)):
+  axes.text(results_pd_rnd.Recall[index]-0.02, 1 + results_pd_rnd.Precision[index], probs[index], size=12)
+
+
 
 # Remove the bounding box to make the graphs look less cluttered
-#axes[0].spines['right'].set_visible(False)
-#axes[0].spines['top'].set_visible(False)
+axes.spines['right'].set_visible(False)
+axes.spines['top'].set_visible(False)
 plt.show()
 fig.savefig(f"Precision and recall.jpg", bbox_inches='tight', dpi = 300)
 
