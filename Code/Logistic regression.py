@@ -165,36 +165,37 @@ assembler_df.orderBy()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Look at the Tail Number/Day level
+# MAGIC ## Make predictions at various thresholds of what delay odds are considered a predicted delay.
 
 # COMMAND ----------
 
-# Group by TailNUmber and day
-# Then compute autocorrelation with lag 1 for the resulting groups: for each airport, each day
-# Also keep track of how many flights airport has seen that day
-df_auto_tail = otpw_to_process.groupBy("TAIL_NUM","date_day") \
-                .agg(collect_list(col("DEP_DELAY")).alias("DEP_DELAYS")) \
-                .withColumns({"auto": auto("DEP_DELAYS"), "count": size("DEP_DELAYS")})\
-                .orderBy("sched_depart_date_time_UTC")
+# Make preditions, given cutoff
+def prec_rec(cut_off, num_positive, data):
+    df_pred_stats = data.select(
+        _sum(  ((data.predicted_delay >= cut_off)  &  data.delayed  ).cast('integer')   ).alias('TP'),
+        _sum(  ((data.predicted_delay >= cut_off)  &  ~data.delayed ).cast('integer')   ).alias('FP')
+    ).collect()
 
-# Discard records for the airports with less than 5 flights a day.
-df_auto_tail = df_auto_tail.filter(df_auto_tail["count"]>4)[["TAIL_NUM", 'date_day', 'auto']]
+    TP = df_pred_stats[0]['TP']
+    FP = df_pred_stats[0]['FP']
 
-#Get final result into Pandas. Only ~20k records for 3M data
-pd_auto_tail = df_auto_tail.toPandas()
-pd_auto_tail
+    precision = 100*TP/(TP+FP)
+    recall = 100*TP/num_positive
 
+    return precision, recall
+results = []
+cut_offs = [-3, 0, 2, 3, 5, 10, 30, 60]
+for i in cut_offs:
+    results.append(prec_rec(i, Positive, otpw_to_process))
+
+results_pd = pd.DataFrame(results)
+results_pd.columns = ['Precision', 'Recall']
+results_pd
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC https://www.analyticsvidhya.com/blog/2018/09/multivariate-time-series-guide-forecasting-modeling-python-codes/
-# MAGIC
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #Make graphs for two parameters
+# MAGIC ## Make precision/recall graphs for two models
 
 # COMMAND ----------
 
@@ -202,73 +203,38 @@ pd_auto_tail
 num_rows = 1
 num_columns = 1
 fig, axes = plt.subplots(num_rows, num_columns, sharex=True)
-fig.set_figheight(5)
+fig.set_figheight(10)
 #Adjust space between plots in the figure
 plt.subplots_adjust(hspace = 0.2)
 
 
-num_bins = 100
+#Fill the axis with data
+axes.plot(results_pd.Recall, results_pd.Precision, label = "Previous flights", color = 'g')
+axes.scatter(results_pd.Recall, results_pd.Precision,  label = "Cut off, min", color = 'g')   
 
-# the histogram of the data
-n, bins, patches = axes.hist(pd_auto_tail.auto, num_bins, density=True)
-sigma = pd_auto_tail.auto.std()
-mu = pd_auto_tail.auto.mean()
-y = ((1 / (np.sqrt(2 * np.pi) * sigma)) * np.exp(-0.5 * (1 / sigma * (bins - mu))**2))
-axes.plot(bins, y, '--')
-
-# add a 'best fit' line
-axes.set_xlabel('Value')
-axes.set_ylabel('Probability density')
-
-# Tweak spacing to prevent clipping of ylabel
-fig.tight_layout()
+axes.axvline(x=80, ymin=0.05, ymax=0.65, color='b', ls = '--')
+axes.text(70, 50, '80% Recall', size=12)
 
 #Set title and axis legend, only set axis legend on the sides
 axes.legend(loc = 'upper left')
-#axes.set_ylim(5, 70)
+
+#axes[0].set_ylabel('Precision')
+axes.set_ylabel('Precision')
+axes.set_xlabel('Recall')
+axes.set_ylim(5, 70)
+
+for index in range(len(cut_offs)):
+  axes.text(results_pd.Recall[index]-0.02, 1 + results_pd.Precision[index], cut_offs[index], size=12)
+for index in range(len(probs)):
+  axes.text(results_pd_rnd.Recall[index]-0.02, 1 + results_pd_rnd.Precision[index], probs[index], size=12)
+
 
 
 # Remove the bounding box to make the graphs look less cluttered
 axes.spines['right'].set_visible(False)
 axes.spines['top'].set_visible(False)
 plt.show()
-fig.savefig(f"Hist for autocorr.jpg", bbox_inches='tight', dpi = 300)
-
-# COMMAND ----------
-
-# Instantiate figure and axis
-num_rows = 1
-num_columns = 1
-fig, axes = plt.subplots(num_rows, num_columns, sharex=True)
-fig.set_figheight(5)
-#Adjust space between plots in the figure
-# plt.subplots_adjust(hspace = 0.2)
-
-num_bins = 100
-
-# the histogram of the data
-n, bins, patches = axes.hist(pd_auto_origin.auto, num_bins, density=True)
-sigma = pd_auto_origin.auto.std()
-mu = pd_auto_origin.auto.mean()
-y = ((1 / (np.sqrt(2 * np.pi) * sigma)) * np.exp(-0.5 * (1 / sigma * (bins - mu))**2))
-axes.plot(bins, y, '--')
-
-# add a 'best fit' line
-axes.set_xlabel('Value')
-axes.set_ylabel('Probability density')
-
-# Tweak spacing to prevent clipping of ylabel
-fig.tight_layout()
-
-#Set title and axis legend, only set axis legend on the sides
-axes.legend(loc = 'upper left')
-#axes.set_ylim(5, 70)
-
-# Remove the bounding box to make the graphs look less cluttered
-axes.spines['right'].set_visible(False)
-axes.spines['top'].set_visible(False)
-plt.show()
-fig.savefig(f"Hist for autocorr.jpg", bbox_inches='tight', dpi = 300)
+fig.savefig(f"Precision and recall.jpg", bbox_inches='tight', dpi = 300)
 
 # COMMAND ----------
 
