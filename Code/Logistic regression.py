@@ -13,6 +13,13 @@ from dateutil.relativedelta import relativedelta
 from pyspark.sql.window import Window
 from pyspark.sql.types import IntegerType, FloatType
 from pyspark.sql.functions import size, to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum, rand, when, collect_list, udf, date_trunc, count, lag, first, last
+from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler, StandardScaler
+from pyspark.ml import Pipeline
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Read data from csv, infer Schema along the way
 
 # COMMAND ----------
 
@@ -20,6 +27,11 @@ from pyspark.sql.functions import size, to_timestamp, mean as _mean, stddev as _
 mids261_mount_path      = "/mnt/mids-w261"
 # read data from file
 otpw = spark.read.load(f"{mids261_mount_path}/OTPW_3M_2015.csv",format="csv", inferSchema="true", header="true")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Drop empty columns, repetitve columns and cancelled flights
 
 # COMMAND ----------
 
@@ -42,6 +54,13 @@ otpw = otpw.drop(*drop_cols).filter(otpw.CANCELLED < 0.1).drop('CANCELLED')
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### Take only features needed, fix datatypes, make tiem in seconds column
+
+# COMMAND ----------
+
+#Set the dataypes for the importnat hourly weather columns
+
 hourly_weather_features = ['HourlyDryBulbTemperature',
             'HourlyStationPressure',
             'HourlyPressureChange',
@@ -62,15 +81,10 @@ for col_name in hourly_weather_features:
 
 # Take only data needed for toy LR
 #take only columns needed
-df_clean = otpw[['sched_depart_date_time_UTC','DEP_DELAY', 'ORIGIN', 'HourlyPrecipitation', 'TAIL_NUM']].dropna()
+df_clean = otpw[['sched_depart_date_time_UTC','DEP_DELAY', 'ORIGIN', 'HourlyPrecipitation', 'TAIL_NUM','OP_UNIQUE_CARRIER']].dropna()
 
-# COMMAND ----------
-
+# Make new column with time in seconds since the begining of Unix epoch
 df_clean = df_clean.withColumn('time_long', df_clean.sched_depart_date_time_UTC.astype('Timestamp').cast("long")).orderBy(df_clean.sched_depart_date_time_UTC)
-
-# COMMAND ----------
-
-df_clean.orderBy(df_clean.sched_depart_date_time_UTC).show()
 
 # COMMAND ----------
 
@@ -79,7 +93,6 @@ df_clean.orderBy(df_clean.sched_depart_date_time_UTC).show()
 
 # COMMAND ----------
 
-# create window by casting timestamp to long (number of seconds)
 # Window will partition by the airport
 # go for 4 hours and stop just before the flight in question
 hours = lambda i: i * 3600
@@ -100,6 +113,54 @@ Time_Tail_Window = Window.partitionBy('TAIL_NUM').orderBy(col('time_long')).rang
 
 df_clean = df_clean.withColumn("Prev_delay", last("DEP_DELAY").over(Time_Tail_Window)).fillna(0)
 df_clean.orderBy('TAIL_NUM', 'time_long').show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### New feature: sparse vector for the airline
+
+# COMMAND ----------
+
+indexer = StringIndexer(inputCol="OP_UNIQUE_CARRIER", outputCol="carrier_idx")
+inputs = [indexer.getOutputCol()]
+encoder = OneHotEncoder(inputCols=inputs, outputCols=["carrier_vec"])
+pipeline = Pipeline(stages=[indexer, encoder])
+df_clean = pipeline.fit(df_clean).transform(df_clean)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Assemble all features in one vector
+
+# COMMAND ----------
+
+assembler = VectorAssembler().setInputCols(['carrier_vec', 'precip_2h', 'Prev_delay'] ).setOutputCol('feat_vec')
+assembler_df = assembler.transform(df_clean)
+assembler_df.show()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Labels
+
+# COMMAND ----------
+
+# Make label column
+df_clean = df_clean.withColumn('label',  when(col("DEP_DELAY") >=15, 1).otherwise(0))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Train / Test Split
+
+# COMMAND ----------
+
+assembler_df.orderBy()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC https://medium.com/swlh/logistic-regression-with-pyspark-60295d41221
 
 # COMMAND ----------
 
