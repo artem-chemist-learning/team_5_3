@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pyspark.sql.window import Window
 from pyspark.sql.types import IntegerType, FloatType
-from pyspark.sql.functions import size, to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum, rand, when, collect_list, udf, date_trunc, count, lag, first, last
+from pyspark.sql.functions import size, to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum, rand, when, collect_list, udf, date_trunc, count, lag, first, last, percent_rank
 from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler, StandardScaler
 from pyspark.ml import Pipeline
 
@@ -136,7 +136,6 @@ df_clean = pipeline.fit(df_clean).transform(df_clean)
 
 assembler = VectorAssembler().setInputCols(['carrier_vec', 'precip_2h', 'Prev_delay'] ).setOutputCol('feat_vec')
 assembler_df = assembler.transform(df_clean)
-assembler_df.show()
 
 # COMMAND ----------
 
@@ -146,7 +145,11 @@ assembler_df.show()
 # COMMAND ----------
 
 # Make label column
-df_clean = df_clean.withColumn('label',  when(col("DEP_DELAY") >=15, 1).otherwise(0))
+assembler_df = df_clean.withColumn('IsDelayed',  when(col("DEP_DELAY") >=15, 'Delayed').otherwise('On time'))
+lbl_indexer = StringIndexer().setInputCol('IsDelayed').setOutputCol('label')
+
+assembler_df = lbl_indexer.fit(assembler_df).transform(assembler_df)
+assembler_df.show()
 
 # COMMAND ----------
 
@@ -155,7 +158,10 @@ df_clean = df_clean.withColumn('label',  when(col("DEP_DELAY") >=15, 1).otherwis
 
 # COMMAND ----------
 
-assembler_df.orderBy()
+Rank_Window = Window.partitionBy().orderBy("sched_depart_date_time_UTC")
+assembler_df = assembler_df.withColumn("rank", percent_rank().over(Rank_Window))
+train_df = assembler_df.where("rank <= .8").drop('rank', 'time_long','IsDelayed')
+test_df = assembler_df.where("rank > .8").drop('rank', 'time_long','IsDelayed')
 
 # COMMAND ----------
 
