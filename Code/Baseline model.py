@@ -42,7 +42,7 @@ class Baseline_Model:
 
 # the 261 course blob storage is mounted here.
 mids261_mount_path      = "/mnt/mids-w261"
-display(dbutils.fs.ls(f"{mids261_mount_path}"))
+# display(dbutils.fs.ls(f"{mids261_mount_path}"))
 
 
 # COMMAND ----------
@@ -124,6 +124,8 @@ for i in cut_offs:
 
 results_pd = pd.DataFrame(results)
 results_pd.columns = ['Precision', 'Recall']
+results_pd['Cutoff'] = cut_offs
+results_pd.to_csv('../Data/Average_in_airport_prec_rec.csv')
 results_pd
 
 # COMMAND ----------
@@ -146,60 +148,15 @@ def random_prec_rec(prob, num_positive, data):
 
     return precision, recall
 results = []
-probs =  [0, 0.20, 0.40, 0.60, 0.80, 0.99]
-for i in probs:
+cut_offs =  [0, 0.20, 0.40, 0.60, 0.80, 0.99]
+for i in cut_offs:
     results.append(random_prec_rec(i, Positive, otpw_to_process))
 
 results_pd_rnd = pd.DataFrame(results)
 results_pd_rnd.columns = ['Precision', 'Recall']
+results_pd_rnd['Cutoff'] = cut_offs
+results_pd_rnd.to_csv('../Data/Random_prec_rec.csv')
 results_pd_rnd
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #Make precision/recall graphs for two models
-
-# COMMAND ----------
-
-# Instantiate figure and axis
-num_rows = 1
-num_columns = 1
-fig, axes = plt.subplots(num_rows, num_columns, sharex=True)
-fig.set_figheight(10)
-#Adjust space between plots in the figure
-plt.subplots_adjust(hspace = 0.2)
-
-
-#Fill the axis with data
-axes.plot(results_pd.Recall, results_pd.Precision, label = "Previous flights", color = 'g')
-axes.scatter(results_pd.Recall, results_pd.Precision,  label = "Cut off, min", color = 'g')   
-axes.plot(results_pd_rnd.Recall, results_pd_rnd.Precision, label = "Random", color = 'r') 
-axes.scatter (results_pd_rnd.Recall, results_pd_rnd.Precision, label = "Probability", color = 'r') 
-
-
-axes.axvline(x=80, ymin=0.05, ymax=0.65, color='b', ls = '--')
-axes.text(70, 50, '80% Recall', size=12)
-
-#Set title and axis legend, only set axis legend on the sides
-axes.legend(loc = 'upper left')
-
-#axes[0].set_ylabel('Precision')
-axes.set_ylabel('Precision')
-axes.set_xlabel('Recall')
-axes.set_ylim(5, 70)
-
-for index in range(len(cut_offs)):
-  axes.text(results_pd.Recall[index]-0.02, 1 + results_pd.Precision[index], cut_offs[index], size=12)
-for index in range(len(probs)):
-  axes.text(results_pd_rnd.Recall[index]-0.02, 1 + results_pd_rnd.Precision[index], probs[index], size=12)
-
-
-
-# Remove the bounding box to make the graphs look less cluttered
-axes.spines['right'].set_visible(False)
-axes.spines['top'].set_visible(False)
-plt.show()
-fig.savefig(f"Precision and recall.jpg", bbox_inches='tight', dpi = 300)
 
 # COMMAND ----------
 

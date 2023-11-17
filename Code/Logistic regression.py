@@ -11,10 +11,17 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pyspark.sql.window import Window
-from pyspark.sql.types import IntegerType, FloatType
+from pyspark.sql.types import IntegerType, FloatType, DoubleType
 from pyspark.sql.functions import size, to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum, rand, when, collect_list, udf, date_trunc, count, lag, first, last, percent_rank
 from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler, StandardScaler
 from pyspark.ml import Pipeline
+from pyspark.ml.classification import LogisticRegression as LR
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #Extract
+# MAGIC
 
 # COMMAND ----------
 
@@ -55,7 +62,7 @@ otpw = otpw.drop(*drop_cols).filter(otpw.CANCELLED < 0.1).drop('CANCELLED')
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Take only features needed, fix datatypes, make tiem in seconds column
+# MAGIC ### Fix datatypes
 
 # COMMAND ----------
 
@@ -79,9 +86,26 @@ for col_name in hourly_weather_features:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ###Take only features needed
+
+# COMMAND ----------
+
 # Take only data needed for toy LR
 #take only columns needed
 df_clean = otpw[['sched_depart_date_time_UTC','DEP_DELAY', 'ORIGIN', 'HourlyPrecipitation', 'TAIL_NUM','OP_UNIQUE_CARRIER']].dropna()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Transform
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### New feature: time in seconds since the beginning of Unix epoch. Only needed for window functions
+
+# COMMAND ----------
 
 # Make new column with time in seconds since the begining of Unix epoch
 df_clean = df_clean.withColumn('time_long', df_clean.sched_depart_date_time_UTC.astype('Timestamp').cast("long")).orderBy(df_clean.sched_depart_date_time_UTC)
@@ -100,7 +124,6 @@ Time_Origin_Window = Window.partitionBy('ORIGIN').orderBy(col('time_long')).rang
 
 # Calculate HourlyPrecipitation over that window
 df_clean = df_clean.withColumn('precip_2h', _mean('HourlyPrecipitation').over(Time_Origin_Window)).dropna()
-df_clean.orderBy('ORIGIN', 'time_long').show()
 
 # COMMAND ----------
 
@@ -112,7 +135,6 @@ df_clean.orderBy('ORIGIN', 'time_long').show()
 Time_Tail_Window = Window.partitionBy('TAIL_NUM').orderBy(col('time_long')).rangeBetween(-hours(20), -hours(2))
 
 df_clean = df_clean.withColumn("Prev_delay", last("DEP_DELAY").over(Time_Tail_Window)).fillna(0)
-df_clean.orderBy('TAIL_NUM', 'time_long').show()
 
 # COMMAND ----------
 
@@ -121,11 +143,9 @@ df_clean.orderBy('TAIL_NUM', 'time_long').show()
 
 # COMMAND ----------
 
-indexer = StringIndexer(inputCol="OP_UNIQUE_CARRIER", outputCol="carrier_idx")
-inputs = [indexer.getOutputCol()]
-encoder = OneHotEncoder(inputCols=inputs, outputCols=["carrier_vec"])
-pipeline = Pipeline(stages=[indexer, encoder])
-df_clean = pipeline.fit(df_clean).transform(df_clean)
+categorical_indexer = StringIndexer(inputCol="OP_UNIQUE_CARRIER", outputCol="carrier_idx")
+inputs = [categorical_indexer.getOutputCol()]
+categorical_encoder = OneHotEncoder(inputCols=inputs, outputCols=["carrier_vec"])
 
 # COMMAND ----------
 
@@ -135,21 +155,41 @@ df_clean = pipeline.fit(df_clean).transform(df_clean)
 # COMMAND ----------
 
 assembler = VectorAssembler().setInputCols(['carrier_vec', 'precip_2h', 'Prev_delay'] ).setOutputCol('feat_vec')
-assembler_df = assembler.transform(df_clean)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Labels
+# MAGIC ### Scale features to assist in regularization.
+
+# COMMAND ----------
+
+scaler = StandardScaler().setInputCol('feat_vec').setOutputCol('feat_scaled')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Make Labels column
 
 # COMMAND ----------
 
 # Make label column
-assembler_df = df_clean.withColumn('IsDelayed',  when(col("DEP_DELAY") >=15, 'Delayed').otherwise('On time'))
+df_clean = df_clean.withColumn('IsDelayed',  when(col("DEP_DELAY") >=15, 'Delayed').otherwise('On time'))
 lbl_indexer = StringIndexer().setInputCol('IsDelayed').setOutputCol('label')
 
-assembler_df = lbl_indexer.fit(assembler_df).transform(assembler_df)
-assembler_df.show()
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Assemble and run transform pipeline
+
+# COMMAND ----------
+
+pipeline = Pipeline(stages=[categorical_indexer, categorical_encoder, assembler, scaler, lbl_indexer])
+df_clean = pipeline.fit(df_clean).transform(df_clean)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #Train and Evaluate
 
 # COMMAND ----------
 
@@ -159,9 +199,20 @@ assembler_df.show()
 # COMMAND ----------
 
 Rank_Window = Window.partitionBy().orderBy("sched_depart_date_time_UTC")
-assembler_df = assembler_df.withColumn("rank", percent_rank().over(Rank_Window))
-train_df = assembler_df.where("rank <= .8").drop('rank', 'time_long','IsDelayed')
-test_df = assembler_df.where("rank > .8").drop('rank', 'time_long','IsDelayed')
+df_clean = df_clean.withColumn("rank", percent_rank().over(Rank_Window))
+train_df = df_clean.where("rank <= .8").drop('rank', 'time_long','IsDelayed')
+test_df = df_clean.where("rank > .8").drop('rank', 'time_long','IsDelayed')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ##Training
+
+# COMMAND ----------
+
+lr = LR(featuresCol='feat_scaled', labelCol='label', maxIter=5)
+predictions = lr.fit(train_df).transform(test_df)
+predictions.show()
 
 # COMMAND ----------
 
@@ -175,11 +226,38 @@ test_df = assembler_df.where("rank > .8").drop('rank', 'time_long','IsDelayed')
 
 # COMMAND ----------
 
+# Convert probability output column to a column with probability of positive
+
+def extract_prob(v):
+    try:
+        return float(v[1])  # Your VectorUDT is of length 2
+    except ValueError:
+        return None
+
+extract_prob_udf = udf(extract_prob, DoubleType())
+predictions = predictions.withColumn("prob_pos", extract_prob_udf(col("probability")))
+
+# Convert label into a bool type column for fater processing
+predictions.withColumn("bool_lbl", predictions.label > 0)
+
+# COMMAND ----------
+
+#Get number of delated and total number of flights
+pos_stats = predictions.select(
+    _sum(col('label')).alias('num_delayed')
+    ).collect()
+
+Positive = pos_stats[0]['num_delayed']
+Total = predictions.count()
+print(f"Actually delayed: {Positive}, Total flights:{Total}")
+
+# COMMAND ----------
+
 # Make preditions, given cutoff
 def prec_rec(cut_off, num_positive, data):
     df_pred_stats = data.select(
-        _sum(  ((data.predicted_delay >= cut_off)  &  data.delayed  ).cast('integer')   ).alias('TP'),
-        _sum(  ((data.predicted_delay >= cut_off)  &  ~data.delayed ).cast('integer')   ).alias('FP')
+        _sum(  ((data.prob_pos >= cut_off)  &  data.bool_lbl  ).cast('integer')   ).alias('TP'),
+        _sum(  ((data.prob_pos >= cut_off)  &  ~data.bool_lbl ).cast('integer')   ).alias('FP')
     ).collect()
 
     TP = df_pred_stats[0]['TP']
@@ -190,58 +268,12 @@ def prec_rec(cut_off, num_positive, data):
 
     return precision, recall
 results = []
-cut_offs = [-3, 0, 2, 3, 5, 10, 30, 60]
+cut_offs = [0, 0.15, 0.16, 0.17, 0.19, 0.21, 0.25, 0.30, 0.60]
 for i in cut_offs:
-    results.append(prec_rec(i, Positive, otpw_to_process))
+    results.append(prec_rec(i, Positive, predictions))
 
 results_pd = pd.DataFrame(results)
 results_pd.columns = ['Precision', 'Recall']
+results_pd['Cutoff'] = cut_offs
+results_pd.to_csv('../Data/Trivial_LR_prec_rec.csv')
 results_pd
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Make precision/recall graphs for two models
-
-# COMMAND ----------
-
-# Instantiate figure and axis
-num_rows = 1
-num_columns = 1
-fig, axes = plt.subplots(num_rows, num_columns, sharex=True)
-fig.set_figheight(10)
-#Adjust space between plots in the figure
-plt.subplots_adjust(hspace = 0.2)
-
-
-#Fill the axis with data
-axes.plot(results_pd.Recall, results_pd.Precision, label = "Previous flights", color = 'g')
-axes.scatter(results_pd.Recall, results_pd.Precision,  label = "Cut off, min", color = 'g')   
-
-axes.axvline(x=80, ymin=0.05, ymax=0.65, color='b', ls = '--')
-axes.text(70, 50, '80% Recall', size=12)
-
-#Set title and axis legend, only set axis legend on the sides
-axes.legend(loc = 'upper left')
-
-#axes[0].set_ylabel('Precision')
-axes.set_ylabel('Precision')
-axes.set_xlabel('Recall')
-axes.set_ylim(5, 70)
-
-for index in range(len(cut_offs)):
-  axes.text(results_pd.Recall[index]-0.02, 1 + results_pd.Precision[index], cut_offs[index], size=12)
-for index in range(len(probs)):
-  axes.text(results_pd_rnd.Recall[index]-0.02, 1 + results_pd_rnd.Precision[index], probs[index], size=12)
-
-
-
-# Remove the bounding box to make the graphs look less cluttered
-axes.spines['right'].set_visible(False)
-axes.spines['top'].set_visible(False)
-plt.show()
-fig.savefig(f"Precision and recall.jpg", bbox_inches='tight', dpi = 300)
-
-# COMMAND ----------
-
-
