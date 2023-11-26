@@ -19,7 +19,7 @@ from pyspark.sql import SparkSession
 
 # random forest
 from pyspark.mllib.regression import LabeledPoint
-from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.classification import RandomForestClassifier, DecisionTreeClassifier
 from pyspark.ml import Pipeline
 from pyspark.mllib.tree import RandomForest
 from pyspark.mllib.util import MLUtils
@@ -69,32 +69,32 @@ df_combined_3.display()
 
 # COMMAND ----------
 
-## Features that need transformation
-#TODO
+# DBTITLE 1,Impute Data
+# MAGIC %md
+# MAGIC ####Features that need transformation
+# MAGIC https://medium.com/airbnb-engineering/overcoming-missing-values-in-a-random-forest-classifier-7b1fc1fc03ba#.1104o9tnm
+# MAGIC "fill in missing values with the median (for numerical values) or mode (for categorical values"
+# MAGIC
+# MAGIC ###### Delays
+# MAGIC   - CARRIER_DELAY: null 
+# MAGIC   - WEATHER_DELAY: null 
+# MAGIC   - etc. etc.
+# MAGIC
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC
-# MAGIC ## Feature Selection p2: Random Forest
+# MAGIC ## Prepare data for DecisionTree, RandomForest
 
 # COMMAND ----------
 
-# DBTITLE 1,Cast Values
-###### Not sure if I still need this ######
-# Convert string to float for random forest use
+# DBTITLE 1,Cast Values, Numeric Features
+# Convert string to float for random forest use -> these are manual right now
 cast_features = ["QUARTER", "DAY_OF_WEEK", "OP_CARRIER_FL_NUM", "ORIGIN_AIRPORT_ID"]
 
 # casting daily features as int for random forest classifier 
 for col_name in cast_features:
     df_combined_3 = df_combined_3.withColumn(col_name, col(col_name).cast('int'))
-
-# Make sure datatype is correct -- check max val
-max_delay = df_combined_3.selectExpr("max(ORIGIN_AIRPORT_ID)").collect()[0][0]
-print("Max ORIGIN_AIRPORT_ID value:", max_delay)
-
-
-# COMMAND ----------
 
 # Select numeric feature columns
 numeric_features = [t[0] for t in df_combined_3.dtypes if t[1] == 'int' or t[1] == 'float']
@@ -102,40 +102,78 @@ df_combined_3.select(numeric_features).describe().toPandas().transpose() ## this
 
 # COMMAND ----------
 
+# DBTITLE 1,Vector Assembler & Features
 ## Drop features column if it already exsits
 if 'features' in df_combined_3.columns:
     df_combined_3 = df_combined_3.drop('features')
 
 # Combine features into a single vector column using vector assembler
 assembler = VectorAssembler(inputCols=numeric_features, outputCol="features", handleInvalid="skip")
-df_combined_3 = assembler.transform(df_combined_3)
+assembled_df = assembler.transform(df_combined_3)
 
-df_combined_3.select("features").display(truncate=False)
+assembled_df.select("features").display(truncate=False)
 
 # COMMAND ----------
 
 # DBTITLE 1,Add 'label' column: Target predictor variable
-# We want the label column to be the target variable you want to predict (i.e. delayed or not)
 # Calculate time difference in minutes between actual departure time and scheduled departure time (and convert to minutes)
 time_difference = (col("DEP_TIME") - col("CRS_DEP_TIME")) / 60 
 
 # Create a new column indicating whether the flight was delayed by 15+ minutes within 2 hours of departure
-df_combined_3 = df_combined_3.withColumn("TIME_DIFFERENCE", time_difference)
-df_combined_3 = df_combined_3.withColumn(
+assembled_df = assembled_df.withColumn("TIME_DIFFERENCE", time_difference)
+assembled_df = assembled_df.withColumn(
     "label", 
     expr("CASE WHEN (DEP_DELAY >= 15 OR DEP_DEL15 == 1) AND (TIME_DIFFERENCE <= 120 AND TIME_DIFFERENCE >= 0) THEN 1 ELSE 0 END")
 )
 
-pd.DataFrame(df_combined_3.take(110), columns=df_combined_3.columns).transpose()
+pd.DataFrame(assembled_df.take(110), columns=assembled_df.columns).transpose()
 
 
 # COMMAND ----------
 
-# DBTITLE 1,Train RF and Get Preds
-# Split the data into test and train
-#### can i do random? probably not because of time series. will change later
-train, test = df_combined_3.randomSplit([0.7, 0.3], seed = 42)
+# MAGIC %md
+# MAGIC
+# MAGIC ## Feature Selection p2: Decision Tree
 
+# COMMAND ----------
+
+# DBTITLE 1,Test / Train Split
+######## Can't do random because of time series. Will change later
+train, test = assembled_df.randomSplit([0.7, 0.3], seed = 42)
+
+# COMMAND ----------
+
+# Use assembler from Random Forest
+feature_columns = numeric_features
+#df = assembler.transform(df_combined_3) -> already did this from RF. need to clean that code up now
+
+# decision tree classifier and training
+dt = DecisionTreeClassifier(labelCol="label", featuresCol="features")
+dt_model = dt.fit(train)
+
+# Make predictions
+dt_predictions = dt_model.transform(test)
+
+# Evaluation metrics
+evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction",
+                                              metricName="accuracy")
+accuracy = evaluator.evaluate(dt_predictions)
+print(f"Accuracy: {accuracy}")
+
+# Display the decision tree
+print("Learned classification tree model:")
+tree_model = dt_model.toDebugString
+print(tree_model)
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC ## Random Forest
+
+# COMMAND ----------
+
+# DBTITLE 1,Train RF and Get Preds
 # Define Random Forest Classifier and model
 rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label')
 rfModel = rf.fit(train)
@@ -147,13 +185,7 @@ predictions.select('DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'HourlyDewPointTemperatur
 
 # COMMAND ----------
 
-# DBTITLE 1,View Predictions vs Actual
-# Compare the actual values and predicted values
-predictions.select("label", "prediction").show(20)
-
-# COMMAND ----------
-
-# DBTITLE 1,Evaluation
+# DBTITLE 1,Evaluation and Predictions
 # Accuracy
 evaluator_acc = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction")
 accuracy = evaluator_acc.evaluate(predictions)
@@ -171,6 +203,9 @@ print(f"Precision = {precision}")
 print(f"Recall = {recall}")
 print(f"Accuracy = {accuracy}")
 print(f"Test Error = ", 1.0 - accuracy)
+
+# Compare the actual values and predicted values
+predictions.select("label", "prediction").show(10)
 
 # COMMAND ----------
 

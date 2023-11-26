@@ -23,16 +23,22 @@
 # MAGIC |Person|Week|
 # MAGIC |---|---|
 # MAGIC |Bailey|Week 1|
-# MAGIC |Art|Week 2|
-# MAGIC |Erik|Week 3|
+# MAGIC |**Art**|**Week 2**|
+# MAGIC |**Erik**|**Week 3**|
 # MAGIC |Lucy|Week 4|
 
 # COMMAND ----------
 
 # MAGIC %md 
 # MAGIC
-# MAGIC ## Abstract (modify for each phase)
+# MAGIC ## Abstract
+# MAGIC ### Phase II Abstract
+# MAGIC 1. Context of the project
+# MAGIC 2. Methods used
+# MAGIC 3. Findings/results
+# MAGIC 4. Next steps
 # MAGIC
+# MAGIC ### Phase I Abstract
 # MAGIC Air travel in the United States is the preferred method of transportation for commercial and recreational use because of its speed, comfort, and safety [1]. Given its initial popularity, air travel technology has improved significantly since the first flight took off in 1908 [2]. For example, modern forecasting technology allows pilots to predict the optimal route and potential flight delays and cancellations given forecasted headwinds, storms, or other semi-predictable events. However, previous studies have found that weather is actually not the primary indicator of whether a flight will be delayed or canceled [1]. Today, seemingly unexpected flight delays are not only a nuisance for passengers, but also could a potentially detrimental threat to the airline industry if customers continue to lose trust in public airline capabilities. Thus, the primary goal of this project is to predict flights delays more than 15 minutes in duration that occur within 2 hours prior to the expected departure time. To accomplish this, we will extract airline and weather data spanning the years 2015 - 2019 from the *On Time Performance and Weather (OTPW)* dataset [3]. Feature selection will be performed through null thresholding (dropping features with more than 90% nulls) and lasso regularization. Key features are hypothesized to be Airline (e.g. *Delta, Southwest*), expected maintenence, history of delays for a given flight number (route), and extreme weather (e.g. ice or snow) [4]. We will perform data cleaning, imputation, and exploratory analysis on the remaining data. The cleaned data will be split into test, train, and validation sets via cross-validation on a rolling basis given the time series nature of the data. We will then build and train a logisitic regression model as a baseline, as well as a random forest to predict delays. The proposed pipeline is expected to perform efficiently in terms of runtime given our proposed utilization of partitionable parquet files in place of the more commonly used CSV files. Finally, to measure the success of our model, we propose to use precision and recall, optimizing the tradeoff between the two such that precision is maximized given a goal recall of 80%. Using the results from this project, we hope to advise airlines on key factors affecting flight delays so that they can mitigate them to better satisfy their customers.
 
 # COMMAND ----------
@@ -47,6 +53,14 @@
 
 # MAGIC %md
 # MAGIC ## Summary of Remaning Data
+# MAGIC
+# MAGIC Description of the data and task at hand
+# MAGIC
+# MAGIC --Data description
+# MAGIC
+# MAGIC --Task to be tackled
+# MAGIC
+# MAGIC -- Provide diagrams to aid understanding the workflow
 
 # COMMAND ----------
 

@@ -5,6 +5,7 @@
 
 # COMMAND ----------
 
+import funcs
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -34,6 +35,12 @@ from pyspark.ml.classification import LogisticRegression as LR
 mids261_mount_path      = "/mnt/mids-w261"
 # read data from file
 otpw = spark.read.load(f"{mids261_mount_path}/OTPW_3M_2015.csv",format="csv", inferSchema="true", header="true")
+
+# COMMAND ----------
+
+# read in daily weather data from parquet
+team_blob_url = funcs.blob_connect()
+joined3M = spark.read.parquet(f"{team_blob_url}/'ES/new_joins/3MO")
 
 # COMMAND ----------
 
