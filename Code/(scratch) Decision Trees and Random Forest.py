@@ -1,9 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC #### Imports, Load in Data
+# MAGIC # Decision Trees and Random Forest
 
 # COMMAND ----------
 
+# DBTITLE 1,Imports
 # analysis requirements
 import pandas as pd
 import numpy as np
@@ -12,20 +13,32 @@ from pyspark.sql.types import StringType, IntegerType, FloatType, BooleanType
 import pyspark.sql.functions as F
 from pyspark.sql import types
 import re
+import matplotlib.pyplot as plt
 
 # spark
 from pyspark import SparkContext
 from pyspark.sql import SparkSession
 
-# random forest
+# cross val 
+import statsmodels.api as sm
+from pyspark.sql.functions import monotonically_increasing_id
+from sklearn.model_selection import StratifiedKFold
+from sklearn.linear_model import LogisticRegressionCV
+
+# log regression, decision tree, random forest
 from pyspark.mllib.regression import LabeledPoint
-from pyspark.ml.classification import RandomForestClassifier, DecisionTreeClassifier
+from pyspark.ml.classification import RandomForestClassifier, DecisionTreeClassifier, LogisticRegression
 from pyspark.ml import Pipeline
 from pyspark.mllib.tree import RandomForest
 from pyspark.mllib.util import MLUtils
 from pyspark.ml.feature import VectorAssembler, StringIndexer
 from sklearn.tree import DecisionTreeRegressor
-from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+
+# evaluation 
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import make_scorer, confusion_matrix, classification_report
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator, BinaryClassificationEvaluator
+from pyspark.mllib.evaluation import BinaryClassificationMetrics
 
 # COMMAND ----------
 
@@ -34,10 +47,6 @@ mids261_mount_path = "/mnt/mids-w261"
 
 # load 3-month data with datatypes
 df_combined_3 = spark.read.load(f"{mids261_mount_path}/OTPW_3M_2015.csv",format="csv", inferSchema="true", header="true")
-
-# COMMAND ----------
-
-df_combined_3.display()
 
 # COMMAND ----------
 
@@ -58,14 +67,25 @@ null_per_t = null_per_t[null_per_t[0] > 90]
 
 # columns to drop based on >90% nulls
 drop_cols = null_per_t['index'].tolist()
+
+# get visual of nulls
+"""
+summary_stats = df_combined_3.select(drop_cols).describe().toPandas().transpose()
+plt.figure(figsize=(10, 6))
+ax = plt.gca()
+ax.axis('off') 
+tbl = ax.table(cellText=summary_stats.values, colLabels=summary_stats.columns, loc='center')
+plt.title('Features with > 90% Nulls')
+plt.xlabel('Feature')
+plt.ylabel('Values')
+plt.tight_layout()
+plt.show()
+plt.savefig('summary_statistics.png', bbox_inches='tight', pad_inches=0.1, transparent=True, format='png')
+"""
+
+#drop columns from dataframe
 df_combined_3 = df_combined_3.drop(*drop_cols)
 df_combined_3.display()
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC
-# MAGIC ## Transform Remaining Features
 
 # COMMAND ----------
 
@@ -132,14 +152,53 @@ pd.DataFrame(assembled_df.take(110), columns=assembled_df.columns).transpose()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC
-# MAGIC ## Feature Selection p2: Decision Tree
+# MAGIC ## Cross-Validation: Test / Train Split
 
 # COMMAND ----------
 
-# DBTITLE 1,Test / Train Split
-######## Can't do random because of time series. Will change later
 train, test = assembled_df.randomSplit([0.7, 0.3], seed = 42)
+kfold = StratifiedKFold(n_splits=10)
+
+lr_model = LogisticRegressionCV(featuresCol='features', labelCol='label', cv=kfold,class_weight='balanced',random_state=888)
+model = lr_model.fit(train)
+model
+
+# COMMAND ----------
+
+# DBTITLE 0,Cross-Validation: Test / Train Split
+######## Can't do random because of time series
+#train, test = assembled_df.randomSplit([0.7, 0.3], seed = 42)
+
+## add id to preserve rows
+assembled_df = assembled_df.withColumn("row_id", monotonically_increasing_id())
+
+# Calculate the number of rows per fold
+n_splits = 4
+total_rows = assembled_df.count()
+rows_per_fold = total_rows // n_splits
+
+# keep track of metrics
+precision = []
+recall = []
+f_beta = []
+
+# time series cross-validation
+for i in range(n_splits):
+    
+    # start and end rows for each fold
+    start_row = i * rows_per_fold
+    end_row = start_row + rows_per_fold if i < n_splits - 1 else total_rows
+    
+    # split the data into train and test sets based on row_id
+    cv_train = assembled_df.filter((assembled_df["row_id"] < start_row) | (assembled_df["row_id"] >= end_row))
+    cv_test = assembled_df.filter((assembled_df["row_id"] >= start_row) & (assembled_df["row_id"] < end_row))
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC ## Feature Selection p2: Decision Tree
 
 # COMMAND ----------
 
@@ -149,10 +208,10 @@ feature_columns = numeric_features
 
 # decision tree classifier and training
 dt = DecisionTreeClassifier(labelCol="label", featuresCol="features")
-dt_model = dt.fit(train)
+dt_model = dt.fit(cv_train)
 
 # Make predictions
-dt_predictions = dt_model.transform(test)
+dt_predictions = dt_model.transform(cv_test)
 
 # Evaluation metrics
 evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction",
@@ -168,19 +227,40 @@ print(tree_model)
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Logistic Regression
+
+# COMMAND ----------
+
+from sklearn.feature_selection import RFE
+
+# logistic regression model
+lr = LogisticRegression(featuresCol='features', labelCol='label')
+model = lr.fit(cv_train)
+
+# Use RFE to select the top 10 features
+rfe = RFE(model, n_features_to_select=10)
+selected_features = cv_train[:, rfe.support_]
+print(selected_features)
+
+# Make predictions on the test set
+lr_predictions = model.transform(cv_test)
+lr_predictions.select(selected_features).show(25)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC
 # MAGIC ## Random Forest
 
 # COMMAND ----------
 
-# DBTITLE 1,Train RF and Get Preds
 # Define Random Forest Classifier and model
 rf = RandomForestClassifier(featuresCol = 'features', labelCol = 'label')
-rfModel = rf.fit(train)
+rfModel = rf.fit(cv_train)
 
 # Look at some predictions
-predictions = rfModel.transform(test)
-predictions.select('DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'HourlyDewPointTemperature', 'HourlyRelativeHumidity', 'label', 'ORIGIN_AIRPORT_ID', 'prediction', 'probability').show(25)
+rf_predictions = rfModel.transform(cv_test)
+rf_predictions.select('DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'HourlyDewPointTemperature', 'HourlyRelativeHumidity', 'label', 'ORIGIN_AIRPORT_ID', 'prediction', 'probability').show(25)
 
 
 # COMMAND ----------
@@ -188,15 +268,15 @@ predictions.select('DAY_OF_WEEK', 'OP_CARRIER_FL_NUM', 'HourlyDewPointTemperatur
 # DBTITLE 1,Evaluation and Predictions
 # Accuracy
 evaluator_acc = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction")
-accuracy = evaluator_acc.evaluate(predictions)
+accuracy = evaluator_acc.evaluate(rf_predictions)
 
 # Precision
 evaluator_precision = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedPrecision")
-precision = evaluator_precision.evaluate(predictions)
+precision = evaluator_precision.evaluate(rf_predictions)
 
 # Recall
 evaluator_recall = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="weightedRecall")
-recall = evaluator_recall.evaluate(predictions)
+recall = evaluator_recall.evaluate(rf_predictions)
 
 # Print metrics
 print(f"Precision = {precision}")
@@ -205,7 +285,11 @@ print(f"Accuracy = {accuracy}")
 print(f"Test Error = ", 1.0 - accuracy)
 
 # Compare the actual values and predicted values
-predictions.select("label", "prediction").show(10)
+rf_predictions.select("label", "prediction").show(10)
+
+# COMMAND ----------
+
+########################################################################
 
 # COMMAND ----------
 
