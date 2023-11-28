@@ -31,13 +31,15 @@ from pyspark.ml.classification import LogisticRegression as LR
 team_blob_url = blob_connect()
 joined3M = spark.read.parquet(f"{team_blob_url}/ES/new_joins/3MO_schema")
 
-# Take only data needed
-#take only columns needed
-df_clean = joined3M[['sched_depart_date_time_UTC','DEP_DELAY', 'ORIGIN', 'origin_3Hr_Precipitation', 'TAIL_NUM','OP_UNIQUE_CARRIER']].dropna()
+# take only columns needed
+# FIlter out all cancelled
+df_clean = joined3M[['sched_depart_date_time_UTC','DEP_DELAY', 'ORIGIN', 'origin_3Hr_Precipitation', 'TAIL_NUM','OP_UNIQUE_CARRIER']].\
+filter(joined3M['CANCELLED'] < 1).dropna()
 
-#df_clean = df_clean.withColumn('sched_depart_date_time_UTC', to_timestamp(df_clean['sched_depart_date_time_UTC']))
-#df_clean = df_clean.withColumn('DEP_DELAY', df_clean['DEP_DELAY'].cast(DoubleType()))
 
+# COMMAND ----------
+
+joined3M.dtypes
 
 # COMMAND ----------
 
@@ -73,6 +75,17 @@ df_clean = df_clean.withColumn("Prev_delay", last("DEP_DELAY").over(Time_Tail_Wi
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ### New feature: average delay for this airport number  
+
+# COMMAND ----------
+
+Time_Origin_Window = Window.partitionBy('ORIGIN').orderBy(col('time_long')).rangeBetween(-hours(6), -hours(2))
+
+df_clean = df_clean.withColumn("Av_airport_delay", _mean("DEP_DELAY").over(Time_Origin_Window)).fillna(0)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ### New feature: sparse vector for the airline
 
 # COMMAND ----------
@@ -88,7 +101,7 @@ categorical_encoder = OneHotEncoder(inputCols=inputs, outputCols=["carrier_vec"]
 
 # COMMAND ----------
 
-assembler = VectorAssembler().setInputCols(['carrier_vec', 'origin_3Hr_Precipitation', 'Prev_delay'] ).setOutputCol('feat_vec')
+assembler = VectorAssembler().setInputCols(['carrier_vec', 'origin_3Hr_Precipitation', 'Prev_delay', "Av_airport_delay"] ).setOutputCol('feat_vec')
 
 # COMMAND ----------
 
@@ -144,8 +157,10 @@ test_df = df_clean.where("rank > .8").drop('rank', 'time_long','IsDelayed')
 
 # COMMAND ----------
 
+# Create an object model that is heavily biased toward LASSO regularization
 lr = LR(featuresCol='feat_scaled', labelCol='label', maxIter=5)
-predictions = lr.fit(train_df).transform(test_df)
+model = lr.fit(train_df)
+predictions = model.transform(test_df)
 predictions.show()
 
 # COMMAND ----------
@@ -171,69 +186,58 @@ def extract_prob(v):
 extract_prob_udf = udf(extract_prob, DoubleType())
 predictions = predictions.withColumn("prob_pos", extract_prob_udf(col("probability")))
 
-# Convert label into a bool type column for fater processing
-predictions = predictions.withColumn("bool_lbl", predictions.label > 0)
-
 # COMMAND ----------
 
-#Get number of delated and total number of flights
-pos_stats = predictions.select(
-    _sum(col('label')).alias('num_delayed')
-    ).collect()
+# Set decison cut offs
+CutOffs = [0, 0.15, 0.16, 0.17, 0.19, 0.21, 0.25, 0.30, 0.80]
 
-Positive = pos_stats[0]['num_delayed']
-Total = predictions.count()
-print(f"Actually delayed: {Positive}, Total flights:{Total}")
-
-# COMMAND ----------
-
-cut_offs = [0, 0.15, 0.16, 0.17, 0.19, 0.21, 0.25, 0.30, 0.80]
-data = 0.6
-bool_lbl = True
-
-#     return [ ( int((data >= cut_off)  &  bool_lbl  ),  int((data >= cut_off)  &  ~bool_lbl )   ) for cut_off in CutOffs ]
-
+# Define functions to labeling a prediction as FP(TP) 
+# Based on teh cut off
 def TP(prob_pos, label):
-    CutOffs =  [0, 0.15, 0.16, 0.17, 0.19, 0.21, 0.25, 0.30, 0.80]
     return [ 1 if (prob_pos >= cut_off) and (label > 0)  else 0 for cut_off in CutOffs]
 def FP(prob_pos, label):
-    CutOffs =  [0, 0.15, 0.16, 0.17, 0.19, 0.21, 0.25, 0.30, 0.80]
     return [ 1 if (prob_pos >= cut_off) and (label < 1)  else 0 for cut_off in CutOffs]
 
+# Define udfs based on these functions
+# These udfs return arrays of the same length as the cut-off array
+# With 1 if the decision would be TP(FP) at this cut off
 make_TP = udf(TP,  ArrayType(IntegerType()))
 make_FP = udf(FP,  ArrayType(IntegerType()))
 
-# COMMAND ----------
-
+# Generate these arrays in the dataframe returned by prediction
 predictions = predictions.withColumns({'TP':make_TP(predictions.prob_pos, predictions.label), 'FP':make_FP(predictions.prob_pos, predictions.label)})
 
-# COMMAND ----------
+# Produce a pair-wise sum of these arrays over the entire dataframe, calculate total true positive along the way   
+num_cols = len(CutOffs)
+TP_FP_pd = predictions.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
+                        array(*[_sum(col("FP")[i]) for i in range(num_cols)]).alias("sumFP"),
+                        _sum(col("label")).alias("Positives")
+                        )\
+                        .toPandas()
 
-predictions.take(1)
-
-# COMMAND ----------
-
-# Make preditions, given cutoff
-def prec_rec(cut_off, num_positive, data):
-    df_pred_stats = data.select(
-        _sum(  ((data.prob_pos >= cut_off)  &  data.bool_lbl  ).cast('integer')   ).alias('TP'),
-        _sum(  ((data.prob_pos >= cut_off)  &  ~data.bool_lbl ).cast('integer')   ).alias('FP')
-    ).collect()
-
-    TP = df_pred_stats[0]['TP']
-    FP = df_pred_stats[0]['FP'] 
-
-    precision = 100*TP/(TP+FP)
-    recall = 100*TP/num_positive
-
-    return precision, recall
-results = []
-cut_offs = [0, 0.15, 0.16, 0.17, 0.19, 0.21, 0.25, 0.30, 0.60]
-for i in cut_offs:
-    results.append(prec_rec(i, Positive, predictions))
-
-results_pd = pd.DataFrame(results)
-results_pd.columns = ['Precision', 'Recall']
-results_pd['Cutoff'] = cut_offs
+# Convert the result into the pd df of precisions and recalls for each cu-off
+results_pd= pd.DataFrame({'Cutoff':CutOffs, 'TP':TP_FP_pd.iloc[0,0], 'FP':TP_FP_pd.iloc[0,1]})
+results_pd['Precision'] = 100*results_pd['TP']/(results_pd['TP'] + results_pd['FP'])
+results_pd['Recall']= 100*results_pd['TP']/TP_FP_pd.iloc[0,2]
 results_pd.to_csv('../Data/Trivial_LR_prec_rec.csv')
 results_pd
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## LR as a feature selector
+
+# COMMAND ----------
+
+# Create an object model that is heavily biased toward LASSO regularization
+lr_selector = LR(featuresCol='feat_scaled', labelCol='label', maxIter=10, regParam=0.05, elasticNetParam=1)
+model_selector = lr_selector.fit(train_df)
+model_selector.coefficients
+
+# COMMAND ----------
+
+model_selector.summary.objectiveHistory
+
+# COMMAND ----------
+
+
