@@ -5,80 +5,77 @@
 
 # COMMAND ----------
 
+# importing custom functions
+from Code.funcs import blob_connect, write_parquet_to_blob
+import csv
+import json
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pyspark.sql.window import Window
-from pyspark.sql.functions import to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum, rand, when
+from pyspark.sql.types import IntegerType, FloatType, DoubleType,  ArrayType
+from pyspark.sql.functions import size, to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum, rand, when, collect_list, udf, date_trunc, count, lag, first, last, percent_rank, array
+from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler, StandardScaler, IndexToString
+from pyspark.ml import Pipeline
+from pyspark.ml.classification import LogisticRegression as LR
+
+team_blob_url = blob_connect()
 
 # COMMAND ----------
 
-class Flight:
-
-    def __init__(self, fl_num, t_num, dep_time):
-
-        self.flight_num = fl_num
-        self.time_dep = dep_time
-        self.tail_num = t_num
+# MAGIC %md
+# MAGIC ## Read from storage
 
 # COMMAND ----------
 
-class Baseline_Model:
-
-    def __init__(self, fl_num, t_num, dep_time):
-        self.conf_level = 0.95
-        self.time_dep = dep_time
-        self.tail_num = t_num
-    
-    def fit(self, data):
-        pass
-    
-    def predict(self, flight):
-        pass
+# read in daily weather data from parquet
+joined3M = spark.read.parquet(f"{team_blob_url}/LH/1yr_clean_temp_2")
 
 # COMMAND ----------
 
-# the 261 course blob storage is mounted here.
-mids261_mount_path      = "/mnt/mids-w261"
-# display(dbutils.fs.ls(f"{mids261_mount_path}"))
+categorical_features = ['ORIGIN']
 
+aux_features = ['sched_depart_date_time_UTC', 'TAIL_NUM', 'DEP_DELAY']
 
 # COMMAND ----------
 
-# read data from file
-otpw = spark.read.format("csv").option("header","true").load(f"{mids261_mount_path}/OTPW_3M/")
+# take only columns with simple features for this model
+# FIlter out all cancelled
+df_clean = joined3M[aux_features + categorical_features].dropna()
 
-#take only columns needed
-otpw_to_process = otpw[['sched_depart_date_time_UTC','DEP_DELAY', 'ORIGIN']].dropna()
 
-#convert dat and time to datetime format and drop original (now unneeded) column
-otpw_to_process = otpw_to_process.withColumn('datetime', to_timestamp(otpw_to_process['sched_depart_date_time_UTC'])).drop('sched_depart_date_time_UTC')
-
-# create window by casting timestamp to long (number of seconds)
-# Window will partition by the airport
-# go for 4 hours and stop just before the flight in question
-hours = lambda i: i * 3600
-WindowSpec = (Window.partitionBy('ORIGIN').orderBy(col('datetime').cast('long')).rangeBetween(-hours(4), -hours(2)))
-
-# Calculate average delay over that window
-otpw_to_process = otpw_to_process.withColumn('predicted_delay', _mean("DEP_DELAY").over(WindowSpec)).dropna()
-
-# Calculate errors for each flight
-otpw_to_process = otpw_to_process.withColumn('error', otpw_to_process.predicted_delay - otpw_to_process.DEP_DELAY)
+# COMMAND ----------
 
 # Make a binary column 1 is for delay
-otpw_to_process = otpw_to_process.withColumn('delayed', (otpw_to_process.DEP_DELAY >=15))
-
-# Show top data for LAX
-otpw_to_process.filter(otpw_to_process.ORIGIN == 'LAX').orderBy('datetime').show()
+df_clean = df_clean.withColumn('label', (df_clean.DEP_DELAY >=15).cast('integer'))
 
 # COMMAND ----------
 
-# Ge the stats for the predictions
+df_clean.dtypes
 
-df_error_stats = otpw_to_process.select(
+# COMMAND ----------
+
+# Make new column with time in seconds since the begining of Unix epoch
+df_clean = df_clean.withColumn('time_long', df_clean.sched_depart_date_time_UTC.cast("long")).orderBy(df_clean.sched_depart_date_time_UTC)
+
+#Helper function to navigate this column
+hours = lambda i: i * 3600
+
+# average delay for this airport
+Time_Origin_Window = Window.partitionBy('ORIGIN').orderBy(col('time_long')).rangeBetween(-hours(6), -hours(2))
+df_clean = df_clean.withColumns({"predicted_delay": _mean("DEP_DELAY").over(Time_Origin_Window)}).fillna(0)
+
+# Calculate errors for each flight
+df_clean = df_clean.withColumn('error', df_clean.predicted_delay - df_clean.DEP_DELAY)
+
+# COMMAND ----------
+
+# Get the stats for the predictions
+
+df_error_stats = df_clean.select(
     _mean(col('error')).alias('mean_error'),
     _stddev(col('error')).alias('std_error')
 ).collect()
@@ -92,71 +89,89 @@ print(f'Mean error: {round(mean_error, 2)}, Error stddev: {round(std_error, 2)}'
 # COMMAND ----------
 
 #Get number of delated and total number of flights
-pos_stats = otpw_to_process.select(
-    _sum(col('delayed').cast('integer')).alias('num_delayed')
+pos_stats = df_clean.select(
+    _sum(col('label')).alias('num_delayed')
     ).collect()
 
 Positive = pos_stats[0]['num_delayed']
-Total = otpw_to_process.count()
+Total = df_clean.count()
 print(f"Actually delayed: {Positive}, Total flights:{Total}")
 
 
 # COMMAND ----------
 
-# Make preditions, given cutoff
-def prec_rec(cut_off, num_positive, data):
-    df_pred_stats = data.select(
-        _sum(  ((data.predicted_delay >= cut_off)  &  data.delayed  ).cast('integer')   ).alias('TP'),
-        _sum(  ((data.predicted_delay >= cut_off)  &  ~data.delayed ).cast('integer')   ).alias('FP')
-    ).collect()
+# Set decison cut offs
+CutOffs = [-3, 0, 2, 3, 5, 10, 30, 60]
 
-    TP = df_pred_stats[0]['TP']
-    FP = df_pred_stats[0]['FP']
+# Define functions to labeling a prediction as FP(TP) 
+# Based on teh cut off
+def TP(prob_pos, label):
+    return [ 1 if (prob_pos >= cut_off) and (label > 0)  else 0 for cut_off in CutOffs]
+def FP(prob_pos, label):
+    return [ 1 if (prob_pos >= cut_off) and (label < 1)  else 0 for cut_off in CutOffs]
 
-    precision = 100*TP/(TP+FP)
-    recall = 100*TP/num_positive
+# Define udfs based on these functions
+# These udfs return arrays of the same length as the cut-off array
+# With 1 if the decision would be TP(FP) at this cut off
+make_TP = udf(TP,  ArrayType(IntegerType()))
+make_FP = udf(FP,  ArrayType(IntegerType()))
 
-    return precision, recall
-results = []
-cut_offs = [-3, 0, 2, 3, 5, 10, 30, 60]
-for i in cut_offs:
-    results.append(prec_rec(i, Positive, otpw_to_process))
+# Generate these arrays in the dataframe returned by prediction
+predictions = df_clean.withColumns({'TP':make_TP(df_clean.predicted_delay, df_clean.label), 'FP':make_FP( df_clean.predicted_delay,  df_clean.label)})
 
-results_pd = pd.DataFrame(results)
-results_pd.columns = ['Precision', 'Recall']
-results_pd['Cutoff'] = cut_offs
+# Produce a pair-wise sum of these arrays over the entire dataframe, calculate total true positive along the way   
+num_cols = len(CutOffs)
+TP_FP_pd = predictions.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
+                        array(*[_sum(col("FP")[i]) for i in range(num_cols)]).alias("sumFP"),
+                        _sum(col("label")).alias("Positives")
+                        )\
+                        .toPandas()
+
+# Convert the result into the pd df of precisions and recalls for each cu-off
+results_pd= pd.DataFrame({'Cutoff':CutOffs, 'TP':TP_FP_pd.iloc[0,0], 'FP':TP_FP_pd.iloc[0,1]})
+results_pd['Precision'] = 100*results_pd['TP']/(results_pd['TP'] + results_pd['FP'])
+results_pd['Recall']= 100*results_pd['TP']/TP_FP_pd.iloc[0,2]
 results_pd.to_csv('../Data/Average_in_airport_prec_rec.csv')
 results_pd
 
 # COMMAND ----------
 
-# Make random preditions, given probability of prediction
-def random_prec_rec(prob, num_positive, data):
+# Make random predictions
+# Set decison cut offs
+CutOffs = [0, 0.20, 0.40, 0.60, 0.80, 0.99]
 
-    data = data.withColumn('rnd_pred', when(rand(seed = 42) > prob, True).otherwise(False))
+# Define functions to labeling a prediction as FP(TP) 
+# Based on teh cut off
+def TP(prob_pos, label):
+    return [ 1 if (prob_pos >= cut_off) and (label > 0)  else 0 for cut_off in CutOffs]
+def FP(prob_pos, label):
+    return [ 1 if (prob_pos >= cut_off) and (label < 1)  else 0 for cut_off in CutOffs]
 
-    df_pred_stats = data.select(
-        _sum(  (data.rnd_pred & data.delayed    ).cast('integer') ).alias('TP'),
-        _sum(  (data.rnd_pred & ( ~data.delayed) ).cast('integer') ).alias('FP')
-    ).collect()
+# Define udfs based on these functions
+# These udfs return arrays of the same length as the cut-off array
+# With 1 if the decision would be TP(FP) at this cut off
+make_TP = udf(TP,  ArrayType(IntegerType()))
+make_FP = udf(FP,  ArrayType(IntegerType()))
 
-    TP = df_pred_stats[0]['TP']
-    FP = df_pred_stats[0]['FP']
+# Generate these arrays in the dataframe returned by prediction
+df_clean = df_clean.withColumn('rnd_pred', rand(seed = 42) )
+predictions = df_clean.withColumns({'TP':make_TP(df_clean.rnd_pred, df_clean.label), 'FP':make_FP( df_clean.rnd_pred,  df_clean.label)})
 
-    precision = 100*TP/(TP+FP)
-    recall = 100*TP/num_positive
+# Produce a pair-wise sum of these arrays over the entire dataframe, calculate total true positive along the way   
+num_cols = len(CutOffs)
 
-    return precision, recall
-results = []
-cut_offs =  [0, 0.20, 0.40, 0.60, 0.80, 0.99]
-for i in cut_offs:
-    results.append(random_prec_rec(i, Positive, otpw_to_process))
+TP_FP_pd = predictions.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
+                        array(*[_sum(col("FP")[i]) for i in range(num_cols)]).alias("sumFP"),
+                        _sum(col("label")).alias("Positives")
+                        )\
+                        .toPandas()
 
-results_pd_rnd = pd.DataFrame(results)
-results_pd_rnd.columns = ['Precision', 'Recall']
-results_pd_rnd['Cutoff'] = cut_offs
-results_pd_rnd.to_csv('../Data/Random_prec_rec.csv')
-results_pd_rnd
+# Convert the result into the pd df of precisions and recalls for each cu-off
+results_pd= pd.DataFrame({'Cutoff':CutOffs, 'TP':TP_FP_pd.iloc[0,0], 'FP':TP_FP_pd.iloc[0,1]})
+results_pd['Precision'] = 100*results_pd['TP']/(results_pd['TP'] + results_pd['FP'])
+results_pd['Recall']= 100*results_pd['TP']/TP_FP_pd.iloc[0,2]
+results_pd.to_csv('../Data/Random_prec_rec.csv')
+results_pd
 
 # COMMAND ----------
 

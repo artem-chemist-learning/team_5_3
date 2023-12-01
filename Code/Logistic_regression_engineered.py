@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC
-# MAGIC ## Technical notebook to do trivial LR
+# MAGIC ## Technical notebook to explore autocorrelations in the timesries data
 
 # COMMAND ----------
 
@@ -16,9 +16,9 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from pyspark.sql.window import Window
-from pyspark.sql.types import IntegerType, FloatType, DoubleType,  ArrayType
+from pyspark.sql.types import IntegerType, FloatType, DoubleType,  ArrayType, StringType
 from pyspark.sql.functions import size, to_timestamp, mean as _mean, stddev as _stddev, col, sum as _sum, rand, when, collect_list, udf, date_trunc, count, lag, first, last, percent_rank, array
-from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler, StandardScaler, IndexToString
+from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler, StandardScaler, IndexToString, StringIndexerModel
 from pyspark.ml import Pipeline
 from pyspark.ml.classification import LogisticRegression as LR
 
@@ -33,38 +33,96 @@ team_blob_url = blob_connect()
 
 # read in daily weather data from parquet
 
-joined = spark.read.parquet(f"{team_blob_url}/LH/1yr_clean_temp_2")
-'''
-joined3M = joined3M.withColumns({'DEP_DELAY': joined3M.DEP_DELAY.cast('float')
-                                 ,'sched_depart_date_time_UTC': to_timestamp(joined3M.sched_depart_date_time_UTC)
-                                 ,'CANCELLED': joined3M.CANCELLED.cast('float')
-                                 ,'DISTANCE': joined3M.DISTANCE.cast('float')
-                                })
-                                '''
+joined3M = spark.read.parquet(f"{team_blob_url}/LH/1yr_clean_temp_2")
+
 
 # COMMAND ----------
 
-joined.dtypes
+joined3M.dtypes
 
 # COMMAND ----------
 
-simple_features = ['DISTANCE', 'origin_DailySnowfall',  'origin_DailyPrecipitation'  , 'origin_DailyDepartureFromNormalAverageTemperature' ,  'origin_DailyAverageDryBulbTemperature',  'origin_DailyAverageRelativeHumidity' ,  'origin_DailyAverageStationPressure' , 'origin_DailySustainedWindDirection' ,  'origin_DailySustainedWindSpeed' ,  'dest_DailySnowfall' , 'dest_DailyPrecipitation',   'dest_DailyDepartureFromNormalAverageTemperature',  'dest_DailyAverageDryBulbTemperature',   'dest_DailyAverageRelativeHumidity',  'dest_DailyAverageStationPressure' ,  'dest_DailySustainedWindDirection',  'dest_DailySustainedWindSpeed' ,  'origin_HourlyDryBulbTemperature' ,  'origin_HourlyStationPressure',  'origin_HourlyWindDirection' , 'origin_HourlyPrecipitation',  'origin_HourlyVisibility', 'dest_HourlyDryBulbTemperature', 'dest_HourlyStationPressure' , 'dest_HourlyWindDirection' , 'dest_HourlyPrecipitation' , 'dest_HourlyVisibility' ]
+# bad_days = ['4', '5']
+bad_airlines = ['WN', 'UA', 'NK']
+bad_origins = ['ORD']
+bad_months = ['6']
+sig_num =['origin_DailySnowfall', 'origin_DailyPrecipitation', 'origin_DailyAverageRelativeHumidity', 'dest_DailyAverageRelativeHumidity', 'origin_HourlyDryBulbTemperature', 'origin_HourlyWindDirection','origin_HourlyPrecipitation', 'dest_HourlyDryBulbTemperature', 'dest_HourlyWindDirection', 'dest_HourlyPrecipitation']
 
-categorical_features = ['DAY_OF_WEEK', 'OP_UNIQUE_CARRIER', 'MONTH', 'ORIGIN', 'DEST']
+categorical_features = ['DAY_OF_WEEK', 'OP_UNIQUE_CARRIER', 'ORIGIN', 'MONTH']
+
+eng_features = ['origin_3Hr_DryBulbTemperature',  'origin_6Hr_DryBulbTemperature',  'origin_12Hr_DryBulbTemperature',  'origin_3Hr_PressureChange',  'origin_6Hr_PressureChange',  'origin_12Hr_PressureChange',  'origin_3Hr_StationPressure',  'origin_6Hr_StationPressure',  'origin_12Hr_StationPressure',  'origin_3Hr_Precipitation',  'origin_6Hr_Precipitation',  'origin_12Hr_Precipitation',  'origin_3Hr_Visibility',  'origin_6Hr_Visibility',  'origin_12Hr_Visibility',  'dest_3Hr_DryBulbTemperature',  'dest_6Hr_DryBulbTemperature',  'dest_12Hr_DryBulbTemperature',  'dest_3Hr_PressureChange',  'dest_6Hr_PressureChange',  'dest_12Hr_PressureChange',  'dest_3Hr_StationPressure',  'dest_6Hr_StationPressure',  'dest_12Hr_StationPressure',  'dest_3Hr_Precipitation',  'dest_6Hr_Precipitation',  'dest_12Hr_Precipitation',  'dest_3Hr_Visibility',  'dest_6Hr_Visibility',  'dest_12Hr_Visibility' ]
 
 aux_features = ['sched_depart_date_time_UTC', 'TAIL_NUM', 'DEP_DELAY']
 
-# We can also consider  'OP_CARRIER_FL_NUM'
-
-
 # COMMAND ----------
 
-# take only columns with simple features for this model
+# take only columns needed
 # FIlter out all cancelled
-df_clean = joined[aux_features+ simple_features + categorical_features].dropna()
+df_clean = joined3M[aux_features + categorical_features + sig_num + eng_features].dropna()
+
 df_clean = df_clean.withColumns({'DAY_OF_WEEK': df_clean.DAY_OF_WEEK.cast('string')
                                  ,'MONTH': df_clean.MONTH.cast('string')
                                 })
+
+# COMMAND ----------
+
+# df_clean.count()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Generate new columns fo rcategorical values.
+# MAGIC ### These columns only have slected levels of the category 
+
+# COMMAND ----------
+
+def select_month(v):
+    try:
+        if v in bad_months:
+            return v
+        else:
+            return 'good_month'
+    except ValueError:
+        return None
+select_month_udf = udf(select_month, StringType())
+
+def select_airlines(v):
+    try:
+        if v in bad_airlines:
+            return v
+        else:
+            return 'good_carrier'
+    except ValueError:
+        return None
+    
+select_airlines_udf = udf(select_airlines, StringType())
+
+
+def select_origins(v):
+    try:
+        if v in bad_origins:
+            return v
+        else:
+            return 'good_origin'
+    except ValueError:
+        return None
+select_origins_udf = udf(select_origins, StringType())
+'''
+def select_day(v):
+    try:
+        if v in bad_days:
+            return v
+        else:
+            return 'good_day'
+    except ValueError:
+        return None
+select_day_udf = udf(select_day, StringType())'''
+
+df_clean = df_clean.withColumns({
+                                'MONTH':select_month_udf(col('MONTH'))
+                                ,'ORIGIN':select_origins_udf(col('ORIGIN'))
+                                ,'OP_UNIQUE_CARRIER':select_airlines_udf(col('OP_UNIQUE_CARRIER'))
+                                 })
 
 # COMMAND ----------
 
@@ -88,11 +146,40 @@ encoder = OneHotEncoder(
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ### New engineered features
+
+# COMMAND ----------
+
+# Make new column with time in seconds since the begining of Unix epoch
+df_clean = df_clean.withColumn('time_long', df_clean.sched_depart_date_time_UTC.cast("long")).orderBy(df_clean.sched_depart_date_time_UTC)
+
+#Helper function to navigate this column
+hours = lambda i: i * 3600
+
+# previos delay for this tail number
+Time_Tail_Window = Window.partitionBy('TAIL_NUM').orderBy(col('time_long')).rangeBetween(-hours(26), -hours(2))
+# average delay for this airline
+Time_Carrier_Window = Window.partitionBy('OP_UNIQUE_CARRIER').orderBy(col('time_long')).rangeBetween(-hours(6), -hours(2))
+# average delay for this airport
+Time_Origin_Window = Window.partitionBy('ORIGIN').orderBy(col('time_long')).rangeBetween(-hours(6), -hours(2))
+
+df_clean = df_clean.withColumns({
+    "Av_airport_delay": _mean("DEP_DELAY").over(Time_Origin_Window)
+    ,"Prev_delay": last("DEP_DELAY").over(Time_Tail_Window)
+    ,"Av_carrier_delay": _mean("DEP_DELAY").over(Time_Carrier_Window)
+    ,"Num_flights": count(col("DEP_DELAY")).over(Time_Carrier_Window)
+    ,'sq_precip': col('origin_3Hr_Precipitation') * col('origin_3Hr_Precipitation')
+    ,'sq_snow': col('origin_DailySnowfall') * col('origin_DailySnowfall')
+    }).fillna(0)
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC ### Assemble all features in one vector
 
 # COMMAND ----------
 
-numerical_features = simple_features
+numerical_features = sig_num + eng_features + ["Av_airport_delay", "Prev_delay", "Av_carrier_delay", "Num_flights", 'sq_precip', 'sq_snow']
 input_cols = encoder.getOutputCols() + numerical_features
 assembler = VectorAssembler().setInputCols(input_cols).setOutputCol('feat_vec')
 
@@ -149,31 +236,28 @@ for ft in numerical_features:
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Save/Read the dataset ready for training
-
-# COMMAND ----------
-
-
-'''# Write features needed for training to blob
-location = 'ES/for_training/1Y'
-features_fl = '../Data/1Y_features.csv'
-base_features_fl = '../Data/1Y_base_features.json'
+'''
+# Write features needed for training to blob
+location = 'ES/for_training/1Y_eng'
+features_fl = '../Data/1Y_base_features_eng.jsonY_features_eng.csv'
+base_features_fl = '../Data/1Y_base_features_eng.json'
 write_parquet_to_blob(df_clean[['sched_depart_date_time_UTC','feat_scaled', 'label']], location)
 
 
 with open(features_fl, 'w', newline='') as file:
-
+    # Step 4: Using csv.writer to write the list to the CSV file
     writer = csv.writer(file)
     writer.writerow(lbl_lst)
 
 with open(base_features_fl, 'w') as fp:
-    json.dump(lbl_base_dic, fp)'''
+    json.dump(lbl_base_dic, fp)
+'''
 
 
 # COMMAND ----------
 
-'''#read them back from blob
+'''
+#read them back from blob
 df_clean = spark.read.parquet(f"{team_blob_url}/{location}")
 
 # Read the list of features from file
@@ -184,7 +268,8 @@ with open(features_fl, newline='') as csvfile:
         lbl_lst = row
 
 with open(base_features_fl, 'r') as j:
-     lbl_base_dic = json.loads(j.read())'''
+     lbl_base_dic = json.loads(j.read())
+'''
 
 # COMMAND ----------
 
@@ -223,11 +308,17 @@ for train_b, test_b in zip(train_blocks_boundaries, test_blocks_boundaries):
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## Balance the train dataset
+
+# COMMAND ----------
+
 '''
 # Calculate the imbalce
 on_time_count = train_df.filter(col('label') < 1).count()
 delay_count = train_df.filter(col('label') > 0).count()
 on_time_correction = delay_count/on_time_count
+
 
 # Fix the imbalance on the train_df by dropping ~80% of random on-time flights
 train_df = train_df.withColumn('to_keep', when(
@@ -318,26 +409,17 @@ TP_FP_pd = prediction.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).
 results_pd= pd.DataFrame({'Cutoff':CutOffs, 'TP':TP_FP_pd.iloc[0,0], 'FP':TP_FP_pd.iloc[0,1]})
 results_pd['Precision'] = 100*results_pd['TP']/(results_pd['TP'] + results_pd['FP'])
 results_pd['Recall']= 100*results_pd['TP']/TP_FP_pd.iloc[0,2]
-results_pd.to_csv('../Data/Trivial_LR_prec_rec.csv')
+results_pd.to_csv('../Data/Eng_LR_prec_rec.csv')
 results_pd
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## LR as a feature selector
 
 # COMMAND ----------
 
 # Create an object model that is heavily biased toward LASSO regularization
 Sig_w_dic = {}
-for lbl, weight in zip(lbl_lst, list(models[3].coefficients)):
+for lbl, weight in zip(lbl_lst, list(models[0].coefficients)):
     if weight >0.001:
         Sig_w_dic[lbl] = weight
 Sig_w_dic
-
-# COMMAND ----------
-
-
 
 # COMMAND ----------
 

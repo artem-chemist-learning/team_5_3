@@ -1,0 +1,50 @@
+DecisionTreeClassificationModel: uid=DecisionTreeClassifier_bf66cf8a626f, depth=5, numNodes=33, numClasses=2, numFeatures=99
+  If (feature 7 <= 14.5)
+   If (feature 6 <= 5.5)
+    If (feature 6 <= -1.5)
+     Predict: 0.0
+    Else (feature 6 > -1.5)
+     If (feature 21 <= 2.0)
+      Predict: 0.0
+     Else (feature 21 > 2.0)
+      Predict: 1.0
+   Else (feature 6 > 5.5)
+    If (feature 2 <= 17.5)
+     If (feature 5 <= 9.5)
+      If (feature 7 <= 9.5)
+       Predict: 0.0
+      Else (feature 7 > 9.5)
+       Predict: 1.0
+     Else (feature 5 > 9.5)
+      Predict: 0.0
+    Else (feature 2 > 17.5)
+     Predict: 0.0
+  Else (feature 7 > 14.5)
+   If (feature 18 <= 7.5)
+    If (feature 7 <= 19.5)
+     If (feature 18 <= 2.5)
+      Predict: 1.0
+     Else (feature 18 > 2.5)
+      If (feature 16 <= 14.5)
+       Predict: 0.0
+      Else (feature 16 > 14.5)
+       Predict: 1.0
+    Else (feature 7 > 19.5)
+     Predict: 1.0
+   Else (feature 18 > 7.5)
+    If (feature 6 <= 35.5)
+     If (feature 16 <= 14.5)
+      If (feature 20 <= 14.5)
+       Predict: 0.0
+      Else (feature 20 > 14.5)
+       Predict: 1.0
+     Else (feature 16 > 14.5)
+      Predict: 1.0
+    Else (feature 6 > 35.5)
+     If (feature 18 <= 27.5)
+      Predict: 1.0
+     Else (feature 18 > 27.5)
+      If (feature 6 <= 52.5)
+       Predict: 0.0
+      Else (feature 6 > 52.5)
+       Predict: 1.0
