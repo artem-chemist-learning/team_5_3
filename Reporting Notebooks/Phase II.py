@@ -129,9 +129,98 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Baseline Model: Arithmetic Mean
+# MAGIC ### Baseline Models: Radnom Guess and Arithmetic Mean
+# MAGIC These two models place performance of more sophisticated algorithms in context.
+# MAGIC
+# MAGIC Random guess, the absolutely simplest model, yields approximately 18% precision at any level of recall. This is becasue the dataset is heavily biased to the on-time flights, and only ~18% of the flights are delayed. The probaility of the guess controld the recall: if we label the flight delayed with 50% probability, we mislabel 50% of the delayed flights.
+# MAGIC
+# MAGIC A slightly more complex model only requires a glance at the departure table of the airport 2 hours prior to deprture. For this model we calculate the average departure delay at the origin, and assume that the flight in question will have the same delay. We can label the flight as "Predicted Delayed" if the predicted delay crosses a certain cut-off. At cut_off of ~2 min we achived 80% recall and ~25% precision. in other owrds, if the average delay at the airport, based on the data avaliable 2 hours ahead of departure, exceeds 2 min, then we call the flight delayed. This gave only is a slight improvement over random guess at the lower recalls, but demonstrated a huge improvement at the low recall levels (likely more relevant for passengers that for airlines)
 # MAGIC
 # MAGIC Link to Baseline code: https://adb-4248444930383559.19.azuredatabricks.net/?o=4248444930383559#notebook/1198761045465243
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Trivial Logistic Regression: Only features avaliable in the original dataset, 1 Year data 
+# MAGIC
+# MAGIC Link to Baseline code: https://adb-4248444930383559.19.azuredatabricks.net/?o=4248444930383559#notebook/1871383191021758
+# MAGIC
+# MAGIC This model was meant to demonstrate the potential of the simplest Machine Learning algorythm with no additional input from a Data Scientist. We also used this model to do preliminary featyre selection for further exploration in subsequenst models. All avaliable features were used in the model, with categorical features encoded as dense verctors. In order to select features, we used Lasso regualrization with regularization parameter 0.001. At this point, the following features were selected:
+# MAGIC  Feature|Weight
+# MAGIC  --|--
+# MAGIC  Is it Thursday?|0.026573215014645938
+# MAGIC  Airline UA?|0.00718926061633817
+# MAGIC  Airline B6?| 0.014260556036217646
+# MAGIC  Airline NK?| 0.02855810219583773
+# MAGIC  Is it August?| 0.041008290359131644
+# MAGIC  Origin Daily Precipitation| 0.001764759214029755
+# MAGIC  Origin Daily Average RelativeHumidity| 0.028534395277081803
+# MAGIC  Origin Daily Sustained Wind Speed| 0.019172550243032944
+# MAGIC  Origin Daily Average Relative Humidity| 0.0047175233264285755
+# MAGIC  Origin Hourly Dry Bulb Temperature| 0.2105740990135358
+# MAGIC  Origin Hourly Precipitation| 0.0376938092694382
+# MAGIC  Dest Hourly Dry Bulb Temperature| 0.1524622069178246
+# MAGIC  Dest Hourly Precipitation| 0.010683693538168454
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Engineered Logistic Regression: Added features suggested by the team, 1 Year data 
+# MAGIC
+# MAGIC Link to Baseline code: https://adb-4248444930383559.19.azuredatabricks.net/?o=4248444930383559#notebook/2798664673127070
+# MAGIC
+# MAGIC This model was meant to test if the rational input from a Data Scientist can improve model perfomance. All features selected by the trivial LR model were used as an input, and the following features added as well:
+# MAGIC - Averages for precipitation, wind gust speed, air temprature, visibility, pressure change and pressure. Averages over 3, 6 and 12 hour tiem windows were used. All time windows had 2 hour lag behind the departure time. Data for both origin and destination was used.
+# MAGIC - Average flight delay at the origin, overaged over 4 hour window, lagged 2 hour prior to departure.
+# MAGIC - Average flight delay for this carrier, overaged over 4 hour window, lagged 2 hour prior to departure.
+# MAGIC - Departure delay of the aircarft, latest known 2 hours before departure.
+# MAGIC - Number of flights scheduled to depart with 2 hours from the flight in question.
+# MAGIC - Squared hourly precipitation
+# MAGIC - Squared yesterday snowfal
+# MAGIC
+# MAGIC Lasso regularization was applied again. The table below shows the features that were found significant
+# MAGIC  Feature|Weight
+# MAGIC  --|--
+# MAGIC  Origin Yesterday Snowfall| 0.01304660544810334
+# MAGIC  Origin Precipitation over 6H window| 0.013532988320670998
+# MAGIC  Origin Precipitation over 12H window| 0.0033698415281565174
+# MAGIC  Average delay at the origin| 0.1986512892706633
+# MAGIC  Previous delay of the aircraft| 0.47028030810554966
+# MAGIC  Average delay of the carrier| 0.22544780127460018
+# MAGIC  Number of flights from the origin| 0.14840908175418083
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Final Logistic Regression 4 year data 
+# MAGIC
+# MAGIC Link to Baseline code: https://adb-4248444930383559.19.azuredatabricks.net/?o=4248444930383559#notebook/1537154891793919
+# MAGIC
+# MAGIC This model was meant to test the computational performance of our approach over the large dataset. The following features ended up being significant
+# MAGIC  Feature|Weight
+# MAGIC  --|--
+# MAGIC  Origin Precipitation over 12H window| 0.0018616954402507725
+# MAGIC  Average delay at the origin| 0.30613878147981316
+# MAGIC  Previous delay of the aircraft| 0.49496311984696173
+# MAGIC  Average delay of the carrier| 0.34518882390187083
+# MAGIC  Number of flights from the origin| 0.1776571944179384
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Comparative performance of LR models
+# MAGIC
+# MAGIC Performance metric: Precision at 80% recall
+# MAGIC  Model|Training time, min | Dataset | Test performance, % | Train Perfomance, %
+# MAGIC  --|--|--|--|--
+# MAGIC  Random Guess| 0| 1 Year |19.7|-
+# MAGIC  Baseline| 0 | 1 Year |24.8|-
+# MAGIC  Trivial LR| 14 |1 Year |22.7|as
+# MAGIC  Engineered LR| 23| 1 Year |30.9|as
+# MAGIC  Final LR| 18 | 4 Years |as|as
+# MAGIC
+# MAGIC
+# MAGIC All models were trained using overlapping blocks for cross validation
 
 # COMMAND ----------
 

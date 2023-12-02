@@ -58,6 +58,39 @@ df_clean.dtypes
 
 # COMMAND ----------
 
+# Generate block boundaries
+num_blocks = 5 #number of blocks
+split_ratio = 0.8
+
+test_area = 1- (1-split_ratio) * 1/num_blocks
+train_block = (1-split_ratio) * 1/num_blocks
+train_blocks_boundaries = [(test_area*i/num_blocks, test_area*(i+1)/num_blocks) for i in range(num_blocks)]
+test_blocks_boundaries = [(test_block[1], test_block[1] + train_block ) for test_block in train_blocks_boundaries]
+print(train_blocks_boundaries)
+print(test_blocks_boundaries)
+
+#Create rank column that ranks records by date, from 0 to 1
+Rank_Window = Window.partitionBy().orderBy("sched_depart_date_time_UTC")
+df_clean = df_clean.withColumn("rank", percent_rank().over(Rank_Window))
+
+# Assemble tuples of train and test datasets for cross-validations
+test_train_sets = []
+for train_b, test_b in zip(train_blocks_boundaries, test_blocks_boundaries):
+    test_train_sets.append((
+                            df_clean.where(f"rank <= {train_b[1]} and rank > {train_b[0]}").drop('rank', 'IsDelayed')
+                            , df_clean.where(f"rank > {test_b[0]} and rank <= {test_b[1]}").drop('rank', 'IsDelayed')
+                            ))
+
+# COMMAND ----------
+
+# Combine predictions from all blocks into a single dataframe
+df_clean = test_train_sets[0][1]
+for p in test_train_sets[1:]:
+    df_clean = df_clean.union(p[1])
+df_clean.count()
+
+# COMMAND ----------
+
 # Make new column with time in seconds since the begining of Unix epoch
 df_clean = df_clean.withColumn('time_long', df_clean.sched_depart_date_time_UTC.cast("long")).orderBy(df_clean.sched_depart_date_time_UTC)
 
