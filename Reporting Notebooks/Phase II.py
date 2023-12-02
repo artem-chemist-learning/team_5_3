@@ -161,6 +161,8 @@
 # MAGIC  Origin Hourly Precipitation| 0.0376938092694382
 # MAGIC  Dest Hourly Dry Bulb Temperature| 0.1524622069178246
 # MAGIC  Dest Hourly Precipitation| 0.010683693538168454
+# MAGIC
+# MAGIC  For categorical variables the following categories are baseline: Day of the week: Saturday, Carrier: HA, Month: February. 
 
 # COMMAND ----------
 
@@ -222,12 +224,23 @@
 # MAGIC
 # MAGIC All models were trained using overlapping blocks for cross validation illustrated below. The test/train split was 4/1 and we decided to overlap test and train sections of the blocks to make sure the model is trained on the full yearly data. The leak that arises from using the same data for testing and training is mitigated by the fact that it happes in different models.
 # MAGIC <div>
-# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Cross-validation.png?raw=true" width="800"> 
+# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Cross-validation.png?raw=true" width="400"> 
 # MAGIC </div>
 # MAGIC
-# MAGIC All models were trained using overlapping blocks for cross validation illustrated below. The test/train split was 4/1 and we decided to overlap test and train sections of the blocks to make sure the model is trained on the full yearly data. The leak that arises from using the same data for testing and training is mitigated by the fact that it happes in different models.
+# MAGIC
+# MAGIC
+# MAGIC The image below illustrates comparative performance of all LR and Baseline models for various decision thresholds. It is worth noting that at some threshold all models perform no better than random guess, but if the user is willing to sacrifice the recall, up to 70% precision can be achieved. It truly depends on the use scenario what decision threshold to chose. At the level of usable 80% threshold, the most sophisticated engineered LR model only achieves 31% Precision, which is hardly informative for the airline.
+# MAGIC
+# MAGIC It is also interesting, that trivial logistic regression that does not incorporate any engineered features performs worse that the baseline model.
+# MAGIC This observation gives us hope that the jobs for Data Scientists will not be eliminated by automated code-writing systems in the foreseeable future. 
+# MAGIC   
 # MAGIC <div>
-# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/LR_performance_1Y.png?raw=true" width="800"> 
+# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/LR_performance_1Y.jpg?raw=true" width="600"> 
+# MAGIC
+# MAGIC Dataset imbalance is a concern, given that most flights are not delayed. We attempted to address this concern by dropping apprx.80% of on-time flights from the train deta set. This produced a balanced training data, while keeping test data relevent. Engineered model was trained on these two datasets (with no cross-validation) to investigate effectiveness of this technique. The graphs below present performance of the models at various decision thresholds. It is clear that performance remains virtually unchanged, given that the approptiate decision threshold is chosen. For the model trained onthe imbalanced set the threshold is clode to 20%, while for the model trained onthe balanced set, it is near 45%. We conclude that dropping random on-time records might be benefitial from teh compute perspective, but does not yield a better model.  
+# MAGIC   
+# MAGIC <div>
+# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Balancing.jpg?raw=true" width="600"> 
 
 # COMMAND ----------
 
