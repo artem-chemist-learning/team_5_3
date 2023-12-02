@@ -117,7 +117,7 @@
 # MAGIC   </head>
 # MAGIC   <body>
 # MAGIC     <div style="text-align: center;">
-# MAGIC       <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/phase1_pipeline_model_v2.png?raw=true" width="900">
+# MAGIC       <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/phase1_pipeline_model_v2.png?raw=true" width="900">
 # MAGIC     </div>
 # MAGIC   </body>
 # MAGIC </html>
@@ -217,9 +217,9 @@
 # MAGIC  --|--|--|--|--
 # MAGIC  Random Guess| 0| 1 Year |19.7|-
 # MAGIC  Baseline| 0 | 1 Year |24.8|-
-# MAGIC  Trivial LR| 14 |1 Year |22.7|as
+# MAGIC  Trivial LR| 14 |1 Year |22.7|20.2
 # MAGIC  Engineered LR| 23| 1 Year |30.9|as
-# MAGIC  Final LR| 18 | 4 Years |as|as
+# MAGIC  Final LR| 18 | 4 Years |24.6|as
 # MAGIC
 # MAGIC
 # MAGIC All models were trained using overlapping blocks for cross validation illustrated below. The test/train split was 4/1 and we decided to overlap test and train sections of the blocks to make sure the model is trained on the full yearly data. The leak that arises from using the same data for testing and training is mitigated by the fact that it happes in different models.
@@ -237,10 +237,12 @@
 # MAGIC <div>
 # MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/LR_performance_1Y.jpg?raw=true" width="600"> 
 # MAGIC
-# MAGIC Dataset imbalance is a concern, given that most flights are not delayed. We attempted to address this concern by dropping apprx.80% of on-time flights from the train deta set. This produced a balanced training data, while keeping test data relevent. Engineered model was trained on these two datasets (with no cross-validation) to investigate effectiveness of this technique. The graphs below present performance of the models at various decision thresholds. It is clear that performance remains virtually unchanged, given that the approptiate decision threshold is chosen. For the model trained onthe imbalanced set the threshold is clode to 20%, while for the model trained onthe balanced set, it is near 45%. We conclude that dropping random on-time records might be benefitial from teh compute perspective, but does not yield a better model.  
+# MAGIC Dataset imbalance is a concern, given that most flights are not delayed. We attempted to address this concern by dropping ~82% of on-time flights from the train deta set. This produced a balanced training data, while keeping test data relevant. Engineered model was trained on these two datasets (with no cross-validation) to investigate effectiveness of this technique. The graphs below present performance of the models at various decision thresholds. It is clear that performance remains virtually unchanged, given that the approptiate decision threshold is chosen. For the model trained on the imbalanced set the threshold is close to 20%, while for the model trained onthe balanced set, it is near 45%. We conclude that dropping random on-time records might be benefitial from teh compute perspective, but does not yield a better model.  
 # MAGIC   
 # MAGIC <div>
 # MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Balancing.jpg?raw=true" width="600"> 
+# MAGIC
+# MAGIC Finally, aggressive feature selection yelded a really lightweight model that could be trained really fast on the largest 4 Y dataset. However, performance on thi sdataset suffered, likely due to the drift in the realive feature importace over time. 
 
 # COMMAND ----------
 

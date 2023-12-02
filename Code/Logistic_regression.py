@@ -253,10 +253,12 @@ print(f'On Time:{on_time_count}, Delayed: {delay_count}')
 lrs = []
 models = []
 predictions = []
+presictions_test = []
 for train_df, test_df in test_train_sets:
     lrs.append(LR(featuresCol='feat_scaled', labelCol='label', maxIter=10, regParam=0.01, elasticNetParam=1))
     models.append(lrs[-1].fit(train_df))
     predictions.append(models[-1].transform(test_df))
+    presictions_test.append(models[-1].transform(train_df))
 # predictions.show()
 
 # COMMAND ----------
@@ -271,6 +273,19 @@ prediction = predictions[0]
 for p in predictions[1:]:
     prediction = prediction.union(p)
 prediction.count()
+
+# COMMAND ----------
+
+# Combine predictions from all blocks into a single dataframe
+prediction_test = presictions_test[0]
+for p in presictions_test[1:]:
+    prediction_test = prediction_test.union(p)
+prediction_test.count()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Perfomance on test data
 
 # COMMAND ----------
 
@@ -324,7 +339,7 @@ results_pd
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## LR as a feature selector
+# MAGIC ### LR as a feature selector
 
 # COMMAND ----------
 
@@ -338,6 +353,60 @@ Sig_w_dic
 # COMMAND ----------
 
 lbl_base_dic
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Perfomance on train data
+
+# COMMAND ----------
+
+# Convert probability output column to a column with probability of positive
+
+def extract_prob(v):
+    try:
+        return float(v[1])
+    except ValueError:
+        return None
+
+extract_prob_udf = udf(extract_prob, DoubleType())
+prediction_test = prediction_test.withColumn("prob_pos", extract_prob_udf(col("probability")))
+
+# Set decison cut offs
+CutOffs = [0, 0.15, 0.20, 0.25, 0.30, 0.40, 0.60, 0.80]
+
+# Define functions to labeling a prediction as FP(TP) 
+# Based on teh cut off
+def TP(prob_pos, label):
+    return [ 1 if (prob_pos >= cut_off) and (label > 0)  else 0 for cut_off in CutOffs]
+def FP(prob_pos, label):
+    return [ 1 if (prob_pos >= cut_off) and (label < 1)  else 0 for cut_off in CutOffs]
+
+# Define udfs based on these functions
+# These udfs return arrays of the same length as the cut-off array
+# With 1 if the decision would be TP(FP) at this cut off
+make_TP = udf(TP,  ArrayType(IntegerType()))
+make_FP = udf(FP,  ArrayType(IntegerType()))
+
+# Generate these arrays in the dataframe returned by prediction
+prediction_test = prediction_test.withColumns({
+    'TP':make_TP(prediction_test.prob_pos, prediction_test.label)
+    , 'FP':make_FP(prediction_test.prob_pos, prediction_test.label)})
+
+# Produce a pair-wise sum of these arrays over the entire dataframe, calculate total true positive along the way   
+num_cols = len(CutOffs)
+TP_FP_pd = prediction_test.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
+                        array(*[_sum(col("FP")[i]) for i in range(num_cols)]).alias("sumFP"),
+                        _sum(col("label")).alias("Positives")
+                        )\
+                        .toPandas()
+
+# Convert the result into the pd df of precisions and recalls for each cu-off
+results_pd_test= pd.DataFrame({'Cutoff':CutOffs, 'TP':TP_FP_pd.iloc[0,0], 'FP':TP_FP_pd.iloc[0,1]})
+results_pd_test['Precision'] = 100*results_pd_test['TP']/(results_pd_test['TP'] + results_pd_test['FP'])
+results_pd_test['Recall']= 100*results_pd_test['TP']/TP_FP_pd.iloc[0,2]
+results_pd_test.to_csv('../Data/Trivial_LR_test.csv')
+results_pd_test
 
 # COMMAND ----------
 

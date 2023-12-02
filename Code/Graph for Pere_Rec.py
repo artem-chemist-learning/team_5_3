@@ -93,7 +93,7 @@ def impute_precision(x,y, x_to_impute):
 
 # COMMAND ----------
 
-dfs = [rnd_pd, av_pd, lr_pd, eng_lr_pd]
+dfs = [lr_pd, lr_pd_test]
 df_names = ['Random', 'Baseline', 'Trivial LR', 'Engineered LR']
 prec_dic = {}
 for df, name in zip(dfs, df_names):
@@ -151,6 +151,57 @@ axes.spines['top'].set_visible(False)
 
 plt.show()
 fig.savefig(f"../Images/Precision and recall balanced.jpg", bbox_inches='tight', dpi = 300)
+
+# COMMAND ----------
+
+#Read data from files
+lr_pd = pd.read_csv('../Data/Trivial_LR_prec_rec.csv', index_col=0)
+lr_pd_test = pd.read_csv('../Data/Trivial_LR_test.csv', index_col=0)
+
+dfs = [lr_pd, lr_pd_test]
+
+for df in dfs:
+  df.drop(df[df.Precision < 1].index, inplace=True)
+  df.drop(df[df.Recall < 1].index, inplace=True)
+  df.drop(df[df.Precision > 90].index, inplace=True)
+
+
+# Instantiate figure and axis
+num_rows = 1
+num_columns = 1
+fig, axes = plt.subplots(num_rows, num_columns, sharex=True)
+fig.set_figheight(10)
+fig.set_size_inches(8, 6)
+
+#Fill the axis with data
+axes.plot(lr_pd.Recall, lr_pd.Precision, label = "LR on Train", color = 'lightgreen')
+axes.scatter(lr_pd.Recall, lr_pd.Precision, color = 'lightgreen')
+
+axes.plot(lr_pd_test.Recall, lr_pd_test.Precision, label = "LR on Test", color = 'g') 
+axes.scatter(lr_pd_test.Recall, lr_pd_test.Precision, color = 'g')
+
+# Draw a vertical line to show 80% recall
+axes.axvline(x=80, ymin=0.05, ymax=0.45, color='gray', ls = '--')
+axes.text(70, 40, '80% Recall', size=12)
+
+# Write cutoff vaulues on the graph
+for index in range(len(lr_pd_test.Cutoff)):
+  axes.text(lr_pd_test.Recall[index]-0.02, 1 +lr_pd_test.Precision[index], lr_pd_test.Cutoff[index], size=9)
+
+#Set legend position
+axes.legend(loc = 'upper right')
+
+#Setup the x and y 
+axes.set_ylabel('Precision')
+axes.set_xlabel('Recall')
+axes.set_ylim(5, 80)
+
+# Remove the bounding box to make the graphs look less cluttered
+axes.spines['right'].set_visible(False)
+axes.spines['top'].set_visible(False)
+
+plt.show()
+fig.savefig(f"../Images/Test vs train.jpg", bbox_inches='tight', dpi = 300)
 
 # COMMAND ----------
 
