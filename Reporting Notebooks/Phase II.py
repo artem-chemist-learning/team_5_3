@@ -9,7 +9,7 @@
 # MAGIC <pre>     Artem Lebedev          Lucy Moffitt Herr          Erik Sambrailo           Bailey Kuehl<pre>
 # MAGIC  artem.lebedev@berkeley.edu       lherr@berkeley.edu          e.sambrail0@berkeley.edu      bkuehl@berkeley.edu
 # MAGIC <div>
-# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/art.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/lucy.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/erik.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Code/bailey.png?raw=true" width="200">
+# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/art.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/lucy.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/erik.png?raw=true" width="200"> <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/bailey.png?raw=true" width="200">
 # MAGIC </div>
 # MAGIC
 
@@ -220,7 +220,14 @@
 # MAGIC  Final LR| 18 | 4 Years |as|as
 # MAGIC
 # MAGIC
-# MAGIC All models were trained using overlapping blocks for cross validation
+# MAGIC All models were trained using overlapping blocks for cross validation illustrated below. The test/train split was 4/1 and we decided to overlap test and train sections of the blocks to make sure the model is trained on the full yearly data. The leak that arises from using the same data for testing and training is mitigated by the fact that it happes in different models.
+# MAGIC <div>
+# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Cross-validation.png?raw=true" width="800"> 
+# MAGIC </div>
+# MAGIC
+# MAGIC All models were trained using overlapping blocks for cross validation illustrated below. The test/train split was 4/1 and we decided to overlap test and train sections of the blocks to make sure the model is trained on the full yearly data. The leak that arises from using the same data for testing and training is mitigated by the fact that it happes in different models.
+# MAGIC <div>
+# MAGIC <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/LR_performance_1Y.png?raw=true" width="800"> 
 
 # COMMAND ----------
 
