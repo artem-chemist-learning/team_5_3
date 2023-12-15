@@ -1,6 +1,189 @@
 # Databricks notebook source
+import matplotlib.pyplot as plt
+import seaborn as sns
+from Code.funcs import blob_connect
+import pandas as pd
+import numpy as np
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.feature import PCA
+import plotly.express as px
+import mlflow
+team_blob_url = blob_connect()
+
+# COMMAND ----------
+
+df_dimension = spark.read.parquet(f"{team_blob_url}/BK/dimension_tracker")
+
+# COMMAND ----------
+
+df = df_dimension.toPandas()
+
+# Moving the last row to the top (as shown before)
+last_row = df.iloc[[-1]]
+df = pd.concat([last_row, df.drop(df.tail(1).index)])
+
+# Moving the 6th row to the 3rd position (as shown before)
+sixth_row = df.iloc[[5]].copy()
+df = pd.concat([df.iloc[:2], sixth_row, df.iloc[2:5], df.iloc[6:]])
+
+# Moving the 7th row to the 6th position (as shown before)
+seventh_row = df.iloc[[6]].copy()
+df = pd.concat([df.iloc[:5], seventh_row, df.iloc[5:6], df.iloc[7:]])
+
+# Switching the 2nd and 3rd rows
+second_row = df.iloc[[1]].copy()
+third_row = df.iloc[[2]].copy()
+
+df.iloc[1] = third_row.values[0]
+df.iloc[2] = second_row.values[0]
+df
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC # Decision Trees and Random Forest
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+from Code.funcs import blob_connect
+import pandas as pd
+import numpy as np
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.feature import PCA
+import plotly.express as px
+import mlflow
+team_blob_url = blob_connect()
+df = spark.read.parquet(f"{team_blob_url}/LH/1yr_clean_temp_2")
+df = df.dropna()
+
+# COMMAND ----------
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Collecting count data for categorical variables
+count_day_of_week = df.groupBy('DAY_OF_WEEK').count().toPandas()
+count_unique_carrier = df.groupBy('OP_UNIQUE_CARRIER').count().toPandas()
+count_origin = df.groupBy('ORIGIN').count().toPandas()
+
+# Renaming count column to indicate the count for respective variable
+count_day_of_week.rename(columns={'count': 'Count_DAY_OF_WEEK'}, inplace=True)
+count_unique_carrier.rename(columns={'count': 'Count_OP_UNIQUE_CARRIER'}, inplace=True)
+count_origin.rename(columns={'count': 'Count_ORIGIN'}, inplace=True)
+
+# Merging count data into a single DataFrame based on the categorical variables
+merged_counts = pd.merge(count_day_of_week, count_unique_carrier, on='OP_UNIQUE_CARRIER')
+merged_counts = pd.merge(merged_counts, count_origin, on='ORIGIN')
+
+# Creating a pair plot for count data of categorical variables
+sns.pairplot(merged_counts)
+plt.show()
+
+# COMMAND ----------
+
+# Selecting non-delay-related columns of interest
+interesting_columns = ['CRS_ELAPSED_TIME', 'DISTANCE', 'TAXI_OUT']
+
+# Selecting and visualizing the specified columns
+selected_interesting_df = df.select(interesting_columns).toPandas()
+
+# Pairplot for the selected features
+sns.pairplot(selected_interesting_df)
+plt.show()
+
+
+# COMMAND ----------
+
+
+# Categorical variables: DAY_OF_WEEK, OP_UNIQUE_CARRIER, ORIGIN, DEST
+
+# Count plot for DAY_OF_WEEK
+plt.figure(figsize=(8, 6))
+sns.countplot(data=df.toPandas(), x='DAY_OF_WEEK')
+plt.title('Count of Flights by Day of the Week')
+plt.xlabel('Day of the Week')
+plt.ylabel('Count')
+plt.show()
+
+# Count plot for OP_UNIQUE_CARRIER
+plt.figure(figsize=(12, 6))
+sns.countplot(data=df.toPandas(), x='OP_UNIQUE_CARRIER')
+plt.title('Count of Flights by Carrier')
+plt.xlabel('Carrier')
+plt.ylabel('Count')
+plt.xticks(rotation=45)  # Rotate x-labels for readability
+plt.show()
+
+# Count plot for ORIGIN (or DEST)
+plt.figure(figsize=(14, 6))
+sns.countplot(data=df.toPandas(), x='ORIGIN')
+plt.title('Count of Flights by Origin Airport')
+plt.xlabel('Origin Airport')
+plt.ylabel('Count')
+plt.xticks(rotation=90)  # Rotate x-labels for readability
+plt.show()
+
+
+# COMMAND ----------
+
+# Assuming the columns: origin_airport_lat, origin_airport_lon, dest_airport_lat, dest_airport_lon
+
+# Scatter plot for Origin Airport
+plt.figure(figsize=(10, 8))
+plt.scatter(df.select('origin_airport_lon').collect(), df.select('origin_airport_lat').collect(), alpha=0.5)
+plt.title('Geographic Distribution of Origin Airports')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.grid(True)
+plt.show()
+
+# Scatter plot for Destination Airport
+plt.figure(figsize=(10, 8))
+plt.scatter(df.select('dest_airport_lon').collect(), df.select('dest_airport_lat').collect(), alpha=0.5)
+plt.title('Geographic Distribution of Destination Airports')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.grid(True)
+plt.show()
+
+
+# COMMAND ----------
+
+# Bar plot for OP_UNIQUE_CARRIER (airlines)
+plt.figure(figsize=(12, 6))
+sns.countplot(data=df.toPandas(), x='OP_UNIQUE_CARRIER')
+plt.title('Count of Flights by Airline')
+plt.xlabel('Airline')
+plt.ylabel('Count')
+plt.xticks(rotation=45)  # Rotate x-labels for readability
+plt.show()
+
+# Bar plot for OP_CARRIER_AIRLINE_ID (airline IDs)
+plt.figure(figsize=(14, 6))
+sns.countplot(data=df.toPandas(), x='OP_CARRIER_AIRLINE_ID')
+plt.title('Count of Flights by Airline ID')
+plt.xlabel('Airline ID')
+plt.ylabel('Count')
+plt.xticks(rotation=90)  # Rotate x-labels for readability
+plt.show()
+
+
+# COMMAND ----------
+
+import funcs
+
+# reviewing the temperature based features. 
+delay_columns = [
+    'WEATHER_DELAY',
+    'NAS_DELAY',
+    'SECURITY_DELAY',
+    'LATE_AIRCRAFT_DELAY'
+]
+
+funcs.pairplot(df, delay_columns)
 
 # COMMAND ----------
 

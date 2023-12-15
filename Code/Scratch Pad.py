@@ -1,5 +1,128 @@
 # Databricks notebook source
 # MAGIC %md
+# MAGIC # Big Picture Visuals
+
+# COMMAND ----------
+
+# analysis requirements
+from Code.funcs import blob_connect
+import pandas as pd
+import numpy as np
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.feature import PCA
+import plotly.express as px
+import mlflow
+
+# COMMAND ----------
+
+team_blob_url = blob_connect()
+df = spark.read.parquet(f"{team_blob_url}/LH/1yr_clean_temp_2")
+df = df.dropna()
+
+# COMMAND ----------
+
+import matplotlib.pyplot as plt
+
+# Calculating count of delayed and not delayed flights
+delayed_flights = df.filter(df['DEP_DEL15'] == 1).count()
+not_delayed_flights = df.filter(df['DEP_DEL15'] == 0).count()
+
+# Creating a bar plot for delayed vs. not delayed flights
+plt.figure(figsize=(6, 4))
+plt.bar(['Delayed', 'Not Delayed'], [delayed_flights, not_delayed_flights], color=['red', 'green'])
+plt.xlabel('Flight Delay')
+plt.ylabel('Count')
+plt.title('Delayed vs. Not Delayed Flights')
+plt.show()
+
+
+# COMMAND ----------
+
+from pyspark.ml.feature import PCA
+from pyspark.ml.feature import VectorAssembler
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# Assuming 'df' is your Spark DataFrame with numerical columns
+numerical_columns = [col for col, dtype in df.dtypes if dtype in ['int', 'double']]
+
+# Get numerical features into a single vector
+assembler = VectorAssembler(inputCols=numerical_columns, outputCol="features")
+df_assembled = assembler.transform(df).select("features")
+
+# Apply PCA
+pca = PCA(k=2, inputCol="features", outputCol="pca_features")
+model = pca.fit(df_assembled)
+transformed = model.transform(df_assembled).select("pca_features")
+
+# Extracting PCA components to Pandas DataFrame for visualization
+pandas_df = transformed.select("pca_features").toPandas()
+
+# Splitting the dense vector into separate columns
+pandas_df[['PC1', 'PC2']] = pd.DataFrame(pandas_df['pca_features'].tolist(), index=pandas_df.index)
+
+# Plotting PCA components
+plt.figure(figsize=(8, 6))
+plt.scatter(pandas_df['PC1'], pandas_df['PC2'])
+plt.xlabel('Principal Component 1')
+plt.ylabel('Principal Component 2')
+plt.title('PCA Visualization')
+plt.show()
+
+
+# COMMAND ----------
+
+# Apply PCA
+pca = PCA(k=5, inputCol="features", outputCol="pca_features")
+model = pca.fit(df_assembled)
+transformed = model.transform(df_assembled).select("pca_features")
+
+# Extracting PCA components to Pandas DataFrame for visualization
+pandas_df = transformed.select("pca_features").toPandas()
+
+# Splitting the dense vector into separate columns
+pandas_df[['PC1', 'PC2']] = pd.DataFrame(pandas_df['pca_features'].tolist(), index=pandas_df.index)
+
+# Plotting PCA components
+plt.figure(figsize=(8, 6))
+plt.scatter(pandas_df['PC1'], pandas_df['PC2'])
+plt.xlabel('Principal Component 1')
+plt.ylabel('Principal Component 2')
+plt.title('PCA Visualization')
+plt.show()
+
+
+# COMMAND ----------
+
+
+# Assuming 'df' is your Spark DataFrame with numerical columns
+numerical_columns = [col for col, dtype in df.dtypes if dtype in ['int', 'double']]
+
+# Get numerical features into a single vector
+assembler = VectorAssembler(inputCols=numerical_columns, outputCol="features")
+df_assembled = assembler.transform(df).select("features")
+
+# Apply PCA
+pca = PCA(k=2, inputCol="features", outputCol="pca_features")
+model = pca.fit(df_assembled)
+transformed = model.transform(df_assembled).select("pca_features")
+
+# Plotting PCA components using Plotly
+plot_data = transformed.select("pca_features").toPandas()
+
+# Log plot to Spark DataBricks
+with mlflow.start_run() as run:
+    fig = px.scatter(plot_data, x='pca_features[0]', y='pca_features[1]', title='PCA Visualization')
+    display(fig)
+
+
+# COMMAND ----------
+
+################################################################################################################################################################
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC # Decision Trees and Random Forest
 
 # COMMAND ----------

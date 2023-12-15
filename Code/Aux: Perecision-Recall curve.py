@@ -12,15 +12,29 @@ import matplotlib.pyplot as plt
 # COMMAND ----------
 
 #Read data from files
-lr_pd = pd.read_csv('../Data/Trivial_LR_prec_rec.csv', index_col=0)
-eng_lr_pd = pd.read_csv('../Data/Eng_LR_prec_rec.csv', index_col=0)
-av_pd = pd.read_csv('../Data/Average_in_airport_prec_rec.csv', index_col=0)
-rnd_pd = pd.read_csv('../Data/Random_prec_rec.csv', index_col=0)
-#rf_pd = pd.read_csv('../Data/RF_prec_rec.csv', index_col=0)
+lr_pd = pd.read_csv('../Data/Trivial_LR_test.csv', index_col=0)
+eng_lr_pd = pd.read_csv('../Data/Eng_LR_validation_unbalanced.csv', index_col=0)
+av_pd = pd.read_csv('../Data/Average_in_airport.csv', index_col=0)
+rnd_pd = pd.read_csv('../Data/Random.csv', index_col=0)
+eng_lr_pd_blns = pd.read_csv('../Data/Eng_LR_validation.csv', index_col=0)
+mlp_pd = pd.read_csv('../Data/MLP_validation.csv', index_col=0)
 
-dfs = [lr_pd, eng_lr_pd, av_pd, rnd_pd]
+dfs = {"LR trivial" :lr_pd
+        ,"LR engineered unbalanced":eng_lr_pd
+        ,"LR engineered balanced":eng_lr_pd_blns
+        ,"Mean origin delay":av_pd
+        ,"Random":rnd_pd
+        ,"MLP":mlp_pd
+        }
 
-for df in dfs:
+colors = {"LR trivial" :'lawngreen'
+        ,"LR engineered unbalanced":'mediumseagreen'
+        ,"LR engineered balanced":'g'
+        ,"Mean origin delay":'r'
+        ,"Random":'black'
+        ,"MLP":'b'}
+
+for df in dfs.values():
   df.drop(df[df.Precision < 1].index, inplace=True)
   df.drop(df[df.Recall < 1].index, inplace=True)
   df.drop(df[df.Precision > 90].index, inplace=True)
@@ -33,39 +47,17 @@ fig.set_figheight(10)
 fig.set_size_inches(8, 6)
 
 #Fill the axis with data
-axes.plot(lr_pd.Recall, lr_pd.Precision, label = "LogReg", color = 'lightgreen')
-axes.scatter(lr_pd.Recall, lr_pd.Precision, color = 'lightgreen')
-
-axes.plot(av_pd.Recall, av_pd.Precision, label = "Average delay at the origin", color = 'r') 
-axes.scatter (av_pd.Recall, av_pd.Precision, color = 'r') 
-
-axes.plot(rnd_pd.Recall, rnd_pd.Precision, label = "Random", color = 'b') 
-axes.scatter (rnd_pd.Recall, rnd_pd.Precision, color = 'b') 
-
-axes.plot(eng_lr_pd.Recall, eng_lr_pd.Precision, label = "Eng LR", color = 'g') 
-axes.scatter (eng_lr_pd.Recall, eng_lr_pd.Precision, color = 'g') 
-
-#axes.plot(rf_pd.Recall, rf_pd.Precision, label = "Random Forest", color = 'brown') 
-#axes.scatter (rf_pd.Recall, rf_pd.Precision, color = 'brown') 
+for name, df in dfs.items():
+  axes.plot(df.Recall, df.Precision, label = name, color = colors[name])
+  axes.scatter(df.Recall, df.Precision, color =  colors[name])
+  # Write cutoff vaulues on the graph
+  for index in range(len(df.Cutoff)):
+    axes.text(df.Recall[index]-0.02, 1 + df.Precision[index], df.Cutoff[index], size=7)
 
 # Draw a vertical line to show 80% recall
 axes.axvline(x=80, ymin=0.05, ymax=0.45, color='gray', ls = '--')
 axes.text(70, 40, '80% Recall', size=12)
 
-# Write cutoff vaulues on the graph
-for index in range(len(eng_lr_pd.Cutoff)):
-  axes.text(eng_lr_pd.Recall[index]-0.02, 1 + eng_lr_pd.Precision[index], eng_lr_pd.Cutoff[index], size=9)
-'''
-for index in range(len(lr_pd.Cutoff)):
-  axes.text(lr_pd.Recall[index]-0.02, 1 + lr_pd.Precision[index], lr_pd.Cutoff[index], size=9)
-for index in range(len(av_pd.Cutoff)):
-  axes.text(av_pd.Recall[index]-0.02, 1 + av_pd.Precision[index], av_pd.Cutoff[index], size=9)
-for index in range(len(rnd_pd.Cutoff)):
-  axes.text(rnd_pd.Recall[index]-0.02, 1 + rnd_pd.Precision[index], rnd_pd.Cutoff[index], size=9)
-
-for index in range(len(rf_pd.Cutoff)):
-  axes.text(rf_pd.Recall[index]-0.02, 1 + rf_pd.Precision[index], rf_pd.Cutoff[index], size=9)
-'''
 #Set legend position
 axes.legend(loc = 'upper right')
 
@@ -93,10 +85,8 @@ def impute_precision(x,y, x_to_impute):
 
 # COMMAND ----------
 
-dfs = [lr_pd, lr_pd_test]
-df_names = ['Random', 'Baseline', 'Trivial LR', 'Engineered LR']
 prec_dic = {}
-for df, name in zip(dfs, df_names):
+for name, df in dfs.items():
     prec_dic[name] = [round(impute_precision(df['Recall'], df['Precision'], 80), 1)]
 
 prec_df = pd.DataFrame.from_dict(prec_dic)

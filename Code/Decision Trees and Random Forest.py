@@ -250,6 +250,18 @@ rfModel3 = rf_3.fit(train_data)
 
 # COMMAND ----------
 
+# DBTITLE 1,Training Performance on Best Model
+rf_3_training_preds = rfModel3.transform(train_data)
+
+evaluator = MulticlassClassificationEvaluator(labelCol="label")
+training_prec = evaluator.evaluate(rf_3_training_preds, {evaluator.metricName: "weightedPrecision"})
+training_recall = evaluator.evaluate(rf_3_training_preds, {evaluator.metricName: "weightedRecall"})
+
+print("Training Precision: ", training_prec)
+print("Training Recall: ", training_recall)
+
+# COMMAND ----------
+
 # DBTITLE 1,Get predictions
 rf_1_predictions = rfModel.transform(test_data)
 rf_2_predictions = rfModel2.transform(test_data)
