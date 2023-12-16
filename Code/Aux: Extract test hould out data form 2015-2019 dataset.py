@@ -27,27 +27,23 @@ team_blob_url = blob_connect()
 # COMMAND ----------
 
 # Read from storage
-joined = spark.read.parquet(f"{team_blob_url}/BK/clean_5yr_WITHOUT_2019_eng")
+joined = spark.read.parquet(f"{team_blob_url}/BK/clean_5yr_eng")
 
 # Split into train - validations 
-number_of_folds = 1
-test_train_sets = create_validation_blocks(joined, "sched_depart_date_time_UTC", block = number_of_folds, split=0.8)
+test_train_sets = create_validation_blocks(joined, "sched_depart_date_time_UTC", blocks = 1, split=0.77)
 print(f"Train count     : {test_train_sets[0][0].count()}")
-print(f"Validation count:  {test_train_sets[0][1].count()}")
+print(f"Test count:  {test_train_sets[0][1].count()}")
 
-# COMMAND ----------
-
-test_train_sets[0][1].count()
 
 # COMMAND ----------
 
 # Write train into blob
-test_train_sets[0][0].write.mode("overwrite").parquet(f"{team_blob_url}/BK/pure_train")
+test_train_sets[0][0].write.mode("overwrite").parquet(f"{team_blob_url}/BK/final_train")
 
 # COMMAND ----------
 
 # Write validation into blob
-test_train_sets[0][1].write.mode("overwrite").parquet(f"{team_blob_url}/BK/pure_val")
+test_train_sets[0][1].write.mode("overwrite").parquet(f"{team_blob_url}/BK/final_test")
 
 # COMMAND ----------
 

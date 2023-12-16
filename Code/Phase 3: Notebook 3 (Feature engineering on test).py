@@ -32,7 +32,7 @@ team_blob_url = blob_connect()
 # COMMAND ----------
 
 # imputed, 2015-2019 dataset
-imputed_data = spark.read.parquet(f"{team_blob_url}/BK/clean_5yr_WITHOUT_2019_imputed")
+imputed_data = spark.read.parquet(f"{team_blob_url}/BK/5yr_imputed")
 
 # COMMAND ----------
 
@@ -225,5 +225,13 @@ gre_histogram
 
 # COMMAND ----------
 
-location = 'BK/clean_5yr_WITHOUT_2019_eng'
+location = 'BK/clean_5yr_eng'
 write_parquet_to_blob(df_clean, location)
+
+# COMMAND ----------
+
+df_clean.count()
+
+# COMMAND ----------
+
+

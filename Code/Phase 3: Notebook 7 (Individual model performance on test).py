@@ -365,7 +365,7 @@ axes.spines['right'].set_visible(False)
 axes.spines['top'].set_visible(False)
 
 plt.show()
-fig.savefig(f"../Images/Models_on_test.jpg", bbox_inches='tight', dpi = 300)
+fig.savefig(f"../Images/Models_on_val.jpg", bbox_inches='tight', dpi = 300)
 
 # COMMAND ----------
 
@@ -376,3 +376,7 @@ for name, df in dfs.items():
 
 prec_df = pd.DataFrame.from_dict(prec_dic)
 prec_df
+
+# COMMAND ----------
+
+

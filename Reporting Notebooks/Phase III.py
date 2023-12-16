@@ -102,9 +102,11 @@
 # MAGIC
 # MAGIC ### Data Cleaning: Quantitative EDA
 # MAGIC #### Dimensionality
-# MAGIC After joining the data, we analyzed the new dataset for potential nulls, missing values, redundancy in our features, etc. We made the decision to reduce the dimensionality of our data by removing features with more than 80% nulls for their values. In addition, we removed rows that did not have the target variable available. The table below summarizes the steps taken to reduce dimensionality and clean our dataset. 
+# MAGIC After joining the data, we analyzed the new dataset for potential nulls, missing values, redundancy in our features, etc. One example of removing redundancy is when we chose to drop categorical variables, such as `ORIGIN_CITY_NAME`, `DEST_STATE_FIPS` and `DEST_STATE_NM` because we have other flight related variables, including `origin` and `airport` from which we could infer the same information. 
 # MAGIC
-# MAGIC One important note is that after this initial dimensionality reduction on the entire dataset, we split off the 2019 data as a test set. We chose to do this prior to data imputation and feature engineering so that we would avoid leakage and "peeking" at the effects of our chosen imputations. See the section below (*Modeling and Leakage*) for more information.
+# MAGIC In addtion, we made the decision to reduce the dimensionality of our data by removing features with more than 80% nulls for their values. In addition, we removed rows that did not have the target variable available. 
+# MAGIC
+# MAGIC One important note is that after this initial dimensionality reduction on the entire dataset, we split off the 2019 data as a test set. We chose to do this prior to data imputation and feature engineering so that we would avoid leakage and "peeking" at the effects of our chosen imputations. See the section below (*Modeling and Leakage*) for more information. The table below summarizes the steps taken to reduce dimensionality and clean our dataset.
 # MAGIC
 # MAGIC <div style="text-align: center;">
 # MAGIC     <br>
@@ -129,7 +131,7 @@
 # MAGIC We have categorized our features into 3 main groups: Weather Features, Flight Features, and Engineered Features. First, we will show examples of the weather and flight feature families, as well as some initial visual EDA after reviewing the rejoined dataset. Many of the weather features became available after our join, as described above. The sub-categories of each weather and flight family are shown in the tables below. 
 # MAGIC
 # MAGIC ### 1. Weather Feature Family
-# MAGIC We performed EDA on both the Daily and Hourly Datasets.  With our research findings indicating that commercial flights are resilient to weather, we chose to be aggressive in our preliminary feature reduction.  For both the Daily and Hourly datasets, we kept only metric features *(wb3&4)*. More complex features, such as "sky condition", would have required additional parsing logic.  We made the educated assumption that sky condition would not provide enough additional insight, beyond the metric features, to justify the additional time and compute resources necessary to include. 
+# MAGIC We performed EDA on both the Daily and Hourly Datasets.  With our research findings indicating that commercial flights are resilient to weather, we chose to be aggressive in our preliminary feature reduction.  For both the Daily and Hourly datasets, we kept only metric features. More complex features, such as "sky condition", would have required additional parsing logic.  We made the educated assumption that sky condition would not provide enough additional insight, beyond the metric features, to justify the additional time and compute resources necessary to include. 
 # MAGIC
 # MAGIC <div style="text-align: center;">
 # MAGIC     <br>
@@ -137,7 +139,7 @@
 # MAGIC </div>
 # MAGIC <br>
 # MAGIC
-# MAGIC We compiled groups of similar features.  For each grouping, we calculated the Pearson Correlation Coefficient accross the entire train dataset (2015-2018), and produced a pair plot for a small sampling of each. Below is an example of the calculated coefficients and sample pairplots for the metric temperature features found in the Hourly weather data. *(The results of all grouped features can be found in the notebooks (nb3&4))*
+# MAGIC We compiled groups of similar features.  For each grouping, we calculated the Pearson Correlation Coefficient accross the entire train dataset (2015-2018), and produced a pair plot for a small sampling of each. Below is an example of the calculated coefficients and sample pairplots for the metric temperature features found in the Hourly weather data. *(The results of all grouped features can be found in the notebooks linked above))*
 # MAGIC
 # MAGIC <br>
 # MAGIC <div style="text-align: center;">
@@ -160,7 +162,7 @@
 # MAGIC <br>
 # MAGIC
 # MAGIC ### 2. Flight Feature Family
-# MAGIC As our next category of feature families, we looked at flight-related features. As demonstrated from our dimensionali
+# MAGIC As our next category of feature families, we looked at flight-related features. The flights dataset is originally sourced from the TranStats data collection (U.S. Department of Transportation). The full dataset consists of on-time performance data for 31,746,841 U.S. passenger flights between 2015 and 2021, with 109 total features. Key features to use in our EDA and modeling include flight and carrier identifiers, airport location information, and delay time and source attributes.
 # MAGIC
 # MAGIC <div style="text-align: center;">
 # MAGIC     <br>
@@ -317,14 +319,13 @@
 # MAGIC <br>
 # MAGIC
 # MAGIC ### Discussion of Results
-# MAGIC - discuss models, experiments: successes and surprises
 # MAGIC <br>
 # MAGIC <div style="text-align: center;">
-# MAGIC <strong>Modeling Pipeline Workflow</strong>
+# MAGIC <strong>Model performance on validation (left) and test (right) datasets</strong>
 # MAGIC     <br>
-# MAGIC     <img src="https://github.com/baileykuehl/261_usage/blob/main/Models_on_val.jpg?raw=true" width="600">
+# MAGIC     <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Models_on_val.jpg?raw=true" width="400"><img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Models_on_test.jpg?raw=true" width="400">
 # MAGIC </div>
-# MAGIC
+# MAGIC The graphs below exhibit performance of the models on the validation and test data sets.
 # MAGIC
 # MAGIC #### Random Forest
 # MAGIC - grid search
