@@ -99,7 +99,7 @@ df = df.withColumns({lbl:when(col(prob) >cutoff, 1).otherwise(0) for lbl, prob, 
 weights = [.1, .2, .7]
 pred_lbls = ['mlp_prob_pos', 'eng_lr_prob_pos', 'rf_prob_pos']
 df = df.withColumns({"score": sum([w*col(p) for w, p in zip(weights, pred_lbls)])
-                     , "final":  when(col("score") >0.448, 1).otherwise(0)
+                     , "final":  when(col("score") >0.445, 1).otherwise(0)
                     })
 
 # COMMAND ----------
@@ -137,7 +137,9 @@ FP = tp_fp_collected[0][1]
 Positives = tp_fp_collected[0][2]
 Precision = 100*TP/(TP+FP)
 Recall = 100*TP/Positives
-print(f"Precision: {round(Precision,1)}, Recall: {round(Recall,1)}")
+F1 = 2*Precision*Recall/(Recall+Precision)
+F2 = 5*Precision*Recall/(Recall+ 4*Precision)
+print(f"Precision: {round(Precision,1)}, Recall: {round(Recall,1)}, F1: {round(F1,1)}, F2: {round(F2,1)}")
 
 # COMMAND ----------
 
@@ -158,11 +160,28 @@ pd_delayed = pd.DataFrame(
 
 # COMMAND ----------
 
-dfs = {"Predicted Delayed" :pd_delayed
-        ,"Predicted On time":pd_ontime }
+histogram_ontime_mlp = df.filter(col("mlp_pred_lbl")<1).select('DEP_DELAY').rdd.flatMap(lambda x: x).histogram(100)
+histogram_delayed_mlp = df.filter(col("mlp_pred_lbl")>0).select('DEP_DELAY').rdd.flatMap(lambda x: x).histogram(100)
 
-colors = {"Predicted Delayed" :'g'
-        ,"Predicted On time":'r'}
+# Loading the Computed Histogram into a Pandas Dataframe for plotting
+mlp_pd_ontime = pd.DataFrame(
+    list(zip(*histogram_ontime)), 
+    columns=['bin', 'frequency']
+).set_index('bin').reset_index()
+# Loading the Computed Histogram into a Pandas Dataframe for plotting
+mlp_pd_delayed = pd.DataFrame(
+    list(zip(*histogram_delayed)), 
+    columns=['bin', 'frequency']
+).set_index(
+    'bin').reset_index()
+
+# COMMAND ----------
+
+dfs = {"Ensanmble Delayed" :pd_delayed
+        ,"Ensanmble On time":pd_ontime}
+
+colors = {"Ensanmble Delayed" :'g'
+        ,"Ensanmble On time":'r'}
 
 # Instantiate figure and axis
 num_rows = 1

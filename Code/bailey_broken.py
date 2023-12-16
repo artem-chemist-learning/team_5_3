@@ -12,7 +12,14 @@ team_blob_url = blob_connect()
 
 # COMMAND ----------
 
-df_dimension = spark.read.parquet(f"{team_blob_url}/BK/dimension_tracker")
+df_impute = spark.read.parquet(f"{team_blob_url}/BK/imputation_tracker")
+
+# COMMAND ----------
+
+#df_impute.display()
+pd.set_option('display.max_columns', None)  # Show all columns
+pd.set_option('display.max_colwidth', None)  # Show wider cell content
+df_impute.iloc[:57]
 
 # COMMAND ----------
 

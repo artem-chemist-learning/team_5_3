@@ -452,7 +452,7 @@ sig_num
 
 # COMMAND ----------
 
-test_train_sets = create_validation_blocks(joined[aux_features + sig_num], "sched_depart_date_time_UTC", blocks=1, split=0.7)
+test_train_sets = create_validation_blocks(joined[aux_features + sig_num], "sched_depart_date_time_UTC", blocks=1, split=0.01)
 
 # Fix the imbalance on the train_df by dropping ~80% of random on-time flights
 on_time_correction = 0.2 # We assume thwere is about 5 on-time flaight for each delayed
@@ -481,7 +481,3 @@ LR_new = LR(featuresCol='feat_scaled', labelCol='label', maxIter=5, regParam=0.0
 
 pipeline_new = Pipeline(stages=[assembler_new, scaler_new, lbl_indexer_new, LR_new])
 pipeline_new_model = pipeline_new.fit(train_new)
-
-# COMMAND ----------
-
-

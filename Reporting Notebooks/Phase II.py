@@ -475,10 +475,10 @@
 # MAGIC  --|--|--|--|--
 # MAGIC  Random Guess| 0| 1 Year |19.7|-
 # MAGIC  Baseline| 0 | 1 Year |24.8|-
-# MAGIC  Trivial LR| 14 |1 Year |20.2|22.7
-# MAGIC  Engineered LR| 23| 1 Year |31|32
+# MAGIC  Trivial LR| 18 |4 Years |20.2|22.7
+# MAGIC  Engineered LR| 39| 4 Years |31|32
 # MAGIC  Final LR| 18 | 4 Years |24.6|-
-# MAGIC  Random Forest| 3-10 | 1 Year |28|57.1
+# MAGIC  Random Forest| 3-10 | 4 Years |28|57.1
 # MAGIC
 # MAGIC From the above data, we find that our best model is the Engineer Logistic Regression. It is initially surprising that this performs better than Random Forest; however, we believe this to be related to the features used to train each model. For example, we constructed a simple random forest model with limited features, all of which came directly from the OTPW dataset and none of which came from our team's feature engineering. Additionally, due to time constraints, grid search to select the optimize random forest model was not completed during this phase.
 # MAGIC
