@@ -98,7 +98,7 @@ Eng_LR_model = mlflow.spark.load_model('runs:/2f007c3381f64835a0512b2760755b1b/m
 
 # COMMAND ----------
 
-RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model3_long_val")
+RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_finaltest_test")
 
 # Convert probability output column to a column with probability of positive
 RFPred = RFPred.withColumns({"rf_prob_pos": extract_prob_udf(col("probability"))})

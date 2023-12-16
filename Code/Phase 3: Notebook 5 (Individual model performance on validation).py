@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC
-# MAGIC ## Predictions using Logistic regression model
+# MAGIC ## Predictions on validation using all models
 
 # COMMAND ----------
 
@@ -162,7 +162,7 @@ train_new = train_new.withColumns({
 
 # COMMAND ----------
 
-RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model3_long_val")
+RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_final_val")
 
 # Convert probability output column to a column with probability of positive
 RFPred = RFPred.withColumns({"rf_prob_pos": extract_prob_udf(col("probability"))})
@@ -422,15 +422,15 @@ rnd_pd['Recall']= 100*rnd_pd['TP']/TP_FP_pd.iloc[0,2]
 # COMMAND ----------
 
 # Generate graph
-dfs = {"LR engineered": lr_eng_pd
-        ,"Mean origin delay": av_pd
+dfs = {"LR": lr_eng_pd
+        ,"Baseline": av_pd
         ,"Random": rnd_pd
         ,"MLP": mlp_pd
         ,'RF': rf_pd
         }
 
-colors = {"LR engineered":'g'
-        ,"Mean origin delay":'r'
+colors = {"LR":'g'
+        ,"Baseline":'r'
         ,"Random":'black'
         ,"MLP":'b'
         ,"RF":"magenta"
@@ -459,7 +459,7 @@ for name, df in dfs.items():
 
 # Draw a vertical line to show 80% recall
 axes.axvline(x=80, ymin=0.05, ymax=0.45, color='gray', ls = '--')
-axes.text(70, 40, '80% Recall', size=12)
+axes.text(75, 40, '80% Recall', size=12)
 
 #Set legend position
 axes.legend(loc = 'upper right')
@@ -467,7 +467,7 @@ axes.legend(loc = 'upper right')
 #Setup the x and y 
 axes.set_ylabel('Precision')
 axes.set_xlabel('Recall')
-axes.set_ylim(5, 60)
+axes.set_ylim(5, 80)
 
 # Remove the bounding box to make the graphs look less cluttered
 axes.spines['right'].set_visible(False)

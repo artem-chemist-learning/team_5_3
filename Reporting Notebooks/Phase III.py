@@ -325,7 +325,36 @@
 # MAGIC     <br>
 # MAGIC     <img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Models_on_val.jpg?raw=true" width="400"><img src="https://github.com/ArtemChemist/team_5_3/blob/main/Images/Models_on_test.jpg?raw=true" width="400">
 # MAGIC </div>
-# MAGIC The graphs below exhibit performance of the models on the validation and test data sets.
+# MAGIC
+# MAGIC  Model|Precision at 80% recall, % | | 
+# MAGIC  --|--|--|
+# MAGIC --| Validation set|Held-out test set|
+# MAGIC  Random Guess|18.4|--|
+# MAGIC  Baseline|23.8|--|
+# MAGIC  MLP|25.5|--|
+# MAGIC  Log Regression|27|--|
+# MAGIC  Random Forest|27.5|--|
+# MAGIC
+# MAGIC Notebooks to produce zthe graphs:
+# MAGIC Validation data: https://adb-4248444930383559.19.azuredatabricks.net/?o=4248444930383559#notebook/1346418319525821/command/1012234209193114
+# MAGIC Test Data: https://adb-4248444930383559.19.azuredatabricks.net/?o=4248444930383559#notebook/1012234209200373/command/1012234209200383
+# MAGIC
+# MAGIC The graphs above exhibit performance of the models on the validation (left) and test (right) data sets. And the table summarizes the key performance metric.
+# MAGIC
+# MAGIC To build these charts, we analyzed predicted probability of the positive label, produced by the individual models. Varying threshold for calling a flight delayed or not we can djust precision and recall to the desired levels. FOr instance, if the model predicted the probability of a delay to be 40%, and our decision threshold is 30%, we label the flight as delayed. If, however, our decision threshold is 50%, we label the same flight as delayed. This way we directly demonstrate usefullness of the model to the stakeholders, something that might be unclear if we were to use F1 or F2 metrics. 
+# MAGIC
+# MAGIC Random guess, the simples possible model, yields the same ~18% precision at all elvels of the recall. That means, that we predict the flight delayed with some fixed probability, then the precision does not depend on the probability, but the recall does.
+# MAGIC
+# MAGIC Baseline model, which is just the average delay at the origin airport known at the time of prediction, already  perfoms a lot better, showing almost 30% relative improvement over random guess. It is interesting to notice, that 80% recall is a high bar for our models. Have we measured the performance at 50% recall, performance difference would be a lot more pronounced. However, we belive that only catching every other delayed flight will not be actionbale for our client.
+# MAGIC
+# MAGIC Multilayer perciptron, the simples neural network architechture, is the next in the performance order. Given the size of the dataset and the avaliable compute resources, we could only afford to train a small, network with 2 deep layers, 18 nodes each. This is likely not sufficeinet to find the hidden patterns in the data, and that is why performance of the model is lagging begind the top performing models. 
+# MAGIC
+# MAGIC Logistic regression demonstrates some improvement over MLP, likely becasue it is not as compute instensive. Interestingly, in our preliminary experiments, LR only trained on the features diretcly avaliable in the dataset yielded only low performance. Introduction of the features based on the known delays dramatically improved its predictive power. We suggest that this is becasue features in the data set lack substantial predictive power. In other words, they do not matter as much. There are other factors, such as aircraft maintanance and the airline mamangement practicies that strongly affect delays. These features are not present in the dataset, but we get a glimpse of them inderectly, through observed delays. That is what introduction of delay-based features improves model performance so much.
+# MAGIC
+# MAGIC The top performing model is the Random Forest, which is likely becasue it can capture significantly non-linear patterns with little compute power. We treated the ratio of labels in the leaf nodes as the predicted probability of delay. This allowed us to adjust precision/recall balance to achive 80% recall with RF. Interestingly, RF model performs is only slighly better than LR, reinforceing the notion that the data set lacks features with predictive power.
+# MAGIC
+# MAGIC Finally, we assembled three top models into an ensamble to try to find some sinergy in using 
+# MAGIC
 # MAGIC
 # MAGIC #### Random Forest
 # MAGIC - grid search
