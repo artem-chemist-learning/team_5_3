@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC
-# MAGIC ## Predictions using Logistic regression model
+# MAGIC ## Predictions using individual models on final train
 
 # COMMAND ----------
 
@@ -34,37 +34,6 @@ team_blob_url = blob_connect()
 
 # COMMAND ----------
 
-# Define functions to labeling a prediction as FP(TP) 
-# Based on teh cut off
-def TP(prob_pos, label):
-    return [ 1 if (prob_pos >= cut_off) and (label > 0)  else 0 for cut_off in CutOffs]
-def FP(prob_pos, label):
-    return [ 1 if (prob_pos >= cut_off) and (label < 1)  else 0 for cut_off in CutOffs]
-
-# Define udfs based on these functions
-# These udfs return arrays of the same length as the cut-off array
-# With 1 if the decision would be TP(FP) at this cut off
-make_TP = udf(TP,  ArrayType(IntegerType()))
-make_FP = udf(FP,  ArrayType(IntegerType()))
-
-def evaluate_model(prediction, CutOffs, prob_pos, label):
-    # Make arrays of the same length as the cut-off array
-    # With 1 if the decision would be TP(FP) at this cut off
-    prediction = prediction.withColumns({'TP':make_TP(col(prob_pos), col(label), CutOffs), 'FP':make_FP(col(prob_pos), col(label), CutOffs)})
-
-    # Produce a pair-wise sum of these arrays over the entire dataframe, calculate total true positive along the way   
-    num_cols = len(CutOffs)
-    TP_FP_pd = prediction.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
-                            array(*[_sum(col("FP")[i]) for i in range(num_cols)]).alias("sumFP"),
-                            _sum(col("label")).alias("Positives")
-                            ).toPandas()
-
-    # Convert the result into the pd df of precisions and recalls for each cu-off
-    results_pd= pd.DataFrame({'Cutoff':CutOffs, 'TP':TP_FP_pd.iloc[0,0], 'FP':TP_FP_pd.iloc[0,1]})
-    results_pd['Precision'] = 100*results_pd['TP']/(results_pd['TP'] + results_pd['FP'])
-    results_pd['Recall']= 100*results_pd['TP']/TP_FP_pd.iloc[0,2]
-    return results_pd
-
 def impute_precision(x,y, x_to_impute):
     int_idx = 0
     for i in range(len(x)-1):
@@ -83,10 +52,9 @@ extract_prob_udf = udf(lambda x: float(x[1]) , DoubleType())
 # COMMAND ----------
 
 # Load data
-val_data = spark.read.parquet(f"{team_blob_url}/BK/pure_val")
+train_data = spark.read.parquet(f"{team_blob_url}/BK/final_train")
 
 #Load models
-#Trivial_LR_model = mlflow.spark.load_model('runs:/aec071ed330042549cfcfda11dc2d007/model')
 Eng_LR_model = mlflow.spark.load_model('runs:/2f007c3381f64835a0512b2760755b1b/model')
 #MLP_model = mlflow.spark.load_model('runs:/52bd40bf8dd84ed3973e7de4b0783208/model')
 
@@ -98,7 +66,7 @@ Eng_LR_model = mlflow.spark.load_model('runs:/2f007c3381f64835a0512b2760755b1b/m
 
 # COMMAND ----------
 
-RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_finaltest_test")
+RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_finaltest_train")
 
 # Convert probability output column to a column with probability of positive
 RFPred = RFPred.withColumns({"rf_prob_pos": extract_prob_udf(col("probability"))})
@@ -141,7 +109,7 @@ rf_pd['Recall']= 100*rf_pd['TP']/TP_FP_pd.iloc[0,2]
 
 # COMMAND ----------
 
-pred_eng = Eng_LR_model.transform(val_data)
+pred_eng = Eng_LR_model.transform(train_data)
 
 # Convert probability output column to a column with probability of positive
 extract_prob_udf = udf(lambda x: float(x[1]) , DoubleType())
@@ -151,7 +119,7 @@ pred_eng = pred_eng.withColumns({"eng_lr_prob_pos": extract_prob_udf(col("probab
                                    'label':  when(col("DEP_DELAY") >=15, 1).otherwise(0)  })
 
 LREngPred = pred_eng[['sched_depart_date_time_UTC', 'TAIL_NUM', 'DEP_DELAY', 'label', 'eng_lr_prob_pos', "eng_lr_pred_lbl"]]
-write_parquet_to_blob(LREngPred, 'BK/LREngPred_test')
+write_parquet_to_blob(LREngPred, 'BK/LREngPred_train')
 
 CutOffs = [0, 0.30, 0.35, 0.37, 0.4, 0.45, 0.8]
 
@@ -193,9 +161,11 @@ lr_eng_pd['Recall']= 100*lr_eng_pd['TP']/TP_FP_pd.iloc[0,2]
 # COMMAND ----------
 
 
-MLPpred = spark.read.parquet(f"{team_blob_url}/BK/mlp_pred")
+MLPpred = spark.read.parquet(f"{team_blob_url}/LH/MLP/mlp_unbalanced_train")
+# Convert probability output column to a column with probability of positive
+MLPpred = MLPpred.withColumns({"mlp_prob_pos": extract_prob_udf(col("mlp_prob_pos"))})
 
-CutOffs = [0,0.30, 0.35, 0.37, 0.4, 0.45, 0.8]
+CutOffs = [0.30, 0.35, 0.37, 0.4, 0.45, 0.6, 0.7, 0.8]
 
 # Define functions to labeling a prediction as FP(TP) 
 # Based on teh cut off
@@ -252,13 +222,13 @@ make_FP = udf(FP,  ArrayType(IntegerType()))
 
 # Make arrays of the same length as the cut-off array
 # With 1 if the decision would be TP(FP) at this cut off
-val_data = val_data.withColumns({'TP' : make_TP(col('Av_carrier_delay'), col('DEP_DEL15'))
+train_data = train_data.withColumns({'TP' : make_TP(col('Av_carrier_delay'), col('DEP_DEL15'))
                                 ,'FP' : make_FP(col('Av_carrier_delay'), col('DEP_DEL15'))
                                 })
 
 # Produce a pair-wise sum of these arrays over the entire dataframe, calculate total true positive along the way   
 num_cols = len(CutOffs)
-TP_FP_pd = val_data.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
+TP_FP_pd = train_data.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
                         array(*[_sum(col("FP")[i]) for i in range(num_cols)]).alias("sumFP"),
                         _sum(col("DEP_DEL15")).alias("Positives")
                         ).toPandas()
@@ -275,7 +245,7 @@ av_pd['Recall']= 100*av_pd['TP']/TP_FP_pd.iloc[0,2]
 
 # COMMAND ----------
 
-val_data = val_data.withColumn('rnd_pred', rand(seed = 42) )
+train_data = train_data.withColumn('rnd_pred', rand(seed = 42) )
 # Set decison cut offs
 CutOffs = [0, 0.30, 0.60, 0.90, 0.99]
 
@@ -294,13 +264,13 @@ make_FP = udf(FP,  ArrayType(IntegerType()))
 
 # Make arrays of the same length as the cut-off array
 # With 1 if the decision would be TP(FP) at this cut off
-val_data = val_data.withColumns({'TP':make_TP(col('rnd_pred'), col('DEP_DEL15'))
+train_data = train_data.withColumns({'TP':make_TP(col('rnd_pred'), col('DEP_DEL15'))
                                 , 'FP':make_FP(col('rnd_pred'), col('DEP_DEL15'))
                                 })
 
 # Produce a pair-wise sum of these arrays over the entire dataframe, calculate total true positive along the way   
 num_cols = len(CutOffs)
-TP_FP_pd = val_data.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
+TP_FP_pd = train_data.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
                         array(*[_sum(col("FP")[i]) for i in range(num_cols)]).alias("sumFP"),
                         _sum(col("DEP_DEL15")).alias("Positives")
                         ).toPandas()
@@ -350,7 +320,7 @@ for name, df in dfs.items():
 
 # Draw a vertical line to show 80% recall
 axes.axvline(x=80, ymin=0.05, ymax=0.45, color='gray', ls = '--')
-axes.text(70, 40, '80% Recall', size=12)
+axes.text(75, 40, '80% Recall', size=12)
 
 #Set legend position
 axes.legend(loc = 'upper right')
@@ -358,14 +328,14 @@ axes.legend(loc = 'upper right')
 #Setup the x and y 
 axes.set_ylabel('Precision')
 axes.set_xlabel('Recall')
-axes.set_ylim(5, 70)
+axes.set_ylim(5, 80)
 
 # Remove the bounding box to make the graphs look less cluttered
 axes.spines['right'].set_visible(False)
 axes.spines['top'].set_visible(False)
 
 plt.show()
-fig.savefig(f"../Images/Models_on_val.jpg", bbox_inches='tight', dpi = 300)
+fig.savefig(f"../Images/Models_on_train.jpg", bbox_inches='tight', dpi = 300)
 
 # COMMAND ----------
 
@@ -379,4 +349,10 @@ prec_df
 
 # COMMAND ----------
 
-
+def impute_precision(x,y, x_to_impute):
+    int_idx = 0
+    for i in range(len(x)-1):
+        if ((x[i] > x_to_impute) & (x[i+1] < x_to_impute)):
+            int_idx = i
+    impute_value = y[int_idx+1] - (y[int_idx+1] - y[int_idx])* ((x[int_idx+1]-x_to_impute)/(x[int_idx+1]-x[int_idx]))
+    return impute_value

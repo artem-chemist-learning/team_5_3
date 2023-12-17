@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC
-# MAGIC ## Predictions on validation using all models
+# MAGIC ## Predictions using Logistic regression model
 
 # COMMAND ----------
 
@@ -83,7 +83,7 @@ extract_prob_udf = udf(lambda x: float(x[1]) , DoubleType())
 # COMMAND ----------
 
 # Load data
-val_data = spark.read.parquet(f"{team_blob_url}/BK/pure_val")
+test_data = spark.read.parquet(f"{team_blob_url}/BK/final_test")
 
 #Load models
 #Trivial_LR_model = mlflow.spark.load_model('runs:/aec071ed330042549cfcfda11dc2d007/model')
@@ -93,76 +93,12 @@ Eng_LR_model = mlflow.spark.load_model('runs:/2f007c3381f64835a0512b2760755b1b/m
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC # Transform for trivial LR
-
-# COMMAND ----------
-
-# Read features selected by trivial LR
-with open('lr_trivial_sig_feat.json', 'r') as fp:
-    features = json.load(fp)
- 
-features = dict(filter(lambda x: True if x[1] >=2 else False, features.items()))
-
-all_simple_features = ['DISTANCE', 'origin_DailySnowfall',  'origin_DailyPrecipitation'  , 'origin_DailyDepartureFromNormalAverageTemperature' ,  'origin_DailyAverageDryBulbTemperature',  'origin_DailyAverageRelativeHumidity' ,  'origin_DailyAverageStationPressure' , 'origin_DailySustainedWindDirection' ,  'origin_DailySustainedWindSpeed' ,  'dest_DailySnowfall' , 'dest_DailyPrecipitation',   'dest_DailyDepartureFromNormalAverageTemperature',  'dest_DailyAverageDryBulbTemperature',   'dest_DailyAverageRelativeHumidity',  'dest_DailyAverageStationPressure' ,  'dest_DailySustainedWindDirection',  'dest_DailySustainedWindSpeed' ,  'origin_HourlyDryBulbTemperature' ,   'origin_HourlyWindDirection' , 'origin_HourlyPrecipitation',  'origin_HourlyVisibility', 'dest_HourlyDryBulbTemperature', 'dest_HourlyStationPressure' , 'dest_HourlyWindDirection' , 'dest_HourlyPrecipitation' , 'dest_HourlyVisibility' ]
-
-all_categorical_features = ['DAY_OF_WEEK', 'OP_UNIQUE_CARRIER', 'MONTH', 'ORIGIN', 'DEST']
-
-aux_features = ['sched_depart_date_time_UTC', 'TAIL_NUM', "DEP_DELAY"]
-
-
-bad_days = []
-bad_airlines = []
-bad_origins = []
-bad_destinations = []
-bad_months = []
-
-bad_lsts = [bad_days, bad_airlines, bad_months, bad_origins, bad_destinations]
-
-sig_num = []
-sig_categorical_features = []
-
-# Fill the list of the simple features that came out to be significant in the trivial case
-for f in all_simple_features:
-    for key in features.keys():
-        if f in key:
-           sig_num.append(key.split(' ')[-1])
-
-# Fill the lists of the siginificance categories of categorical features
-for f, f_lst in zip(all_categorical_features, bad_lsts):
-    for key in features.keys():
-        if f in key:
-            f_lst.append(key.split(' ')[-1])
-
-# Fill the list of the categorical features that came out to be significant in the trivial case
-for f, f_lst in zip (all_categorical_features , bad_lsts):
-    if len(f_lst) > 0:
-        sig_categorical_features.append(f)  
-
-select_month_udf = udf(lambda x: x if (str(x) in bad_months) else 'good_month', StringType())
-select_airlines_udf = udf(lambda x: x if( x in bad_airlines) else 'good_carrier', StringType())
-select_origins_udf = udf(lambda x: x if (x in bad_origins) else 'good_origin', StringType())
-select_destinations_udf = udf(lambda x: x if( x in bad_destinations) else 'good_destination', StringType())
-select_day_udf = udf(lambda x: x if (x in bad_days) else 'good_day', StringType())
-
-train_new = val_data[aux_features + sig_categorical_features + sig_num]
-
-train_new = train_new.withColumns({
-                                'MONTH_new':select_month_udf(col('MONTH'))
-                                ,'ORIGIN_new':select_origins_udf(col('ORIGIN'))
-                                ,'OP_UNIQUE_CARRIER_new':select_airlines_udf(col('OP_UNIQUE_CARRIER'))
-                                ,'DAY_OF_WEEK_new':select_day_udf(col('DAY_OF_WEEK'))
-                                ,'DEST_new':select_destinations_udf(col('DEST'))
-                                 })
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ### Predict with RF
+# MAGIC ### Read RF preditions
 # MAGIC
 
 # COMMAND ----------
 
-RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_final_val")
+RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_finaltest_test")
 
 # Convert probability output column to a column with probability of positive
 RFPred = RFPred.withColumns({"rf_prob_pos": extract_prob_udf(col("probability"))})
@@ -201,35 +137,11 @@ rf_pd['Recall']= 100*rf_pd['TP']/TP_FP_pd.iloc[0,2]
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Predict with trivial LR
-
-# COMMAND ----------
-
-'''
-pred_tr = Trivial_LR_model.transform(train_new)
-
-# Convert probability output column to a column with probability of positive
-extract_prob_udf = udf(lambda x: float(x[1]) , DoubleType())
-threshold = 0.45
-pred_tr = pred_tr.withColumns({"triv_lr_prob_pos": extract_prob_udf(col("probability")),
-                               "triv_lr_pred_lbl": when(col("triv_lr_prob_pos") >=threshold, 1).otherwise(0),
-                                   'label':  when(col("DEP_DELAY") >=15, 1).otherwise(0)  })
-
-TrLRpred = pred_tr[['sched_depart_date_time_UTC', 'TAIL_NUM', 'label', 'triv_lr_prob_pos', "triv_lr_pred_lbl"]]
-write_parquet_to_blob(TrLRpred, 'BK/Val_pred_lr_trivial')
-
-CutOffs = [0,0.30, 0.35, 0.37, 0.4, 0.45, 0.8]
-lr_trivial_pd = evaluate_model(TrLRpred, CutOffs, 'triv_lr_prob_pos', 'label')
-'''
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC ## Predict with Engineered LR
 
 # COMMAND ----------
 
-pred_eng = Eng_LR_model.transform(val_data)
+pred_eng = Eng_LR_model.transform(test_data)
 
 # Convert probability output column to a column with probability of positive
 extract_prob_udf = udf(lambda x: float(x[1]) , DoubleType())
@@ -239,7 +151,7 @@ pred_eng = pred_eng.withColumns({"eng_lr_prob_pos": extract_prob_udf(col("probab
                                    'label':  when(col("DEP_DELAY") >=15, 1).otherwise(0)  })
 
 LREngPred = pred_eng[['sched_depart_date_time_UTC', 'TAIL_NUM', 'DEP_DELAY', 'label', 'eng_lr_prob_pos', "eng_lr_pred_lbl"]]
-write_parquet_to_blob(LREngPred, 'BK/Val_pred_lr_eng')
+write_parquet_to_blob(LREngPred, 'BK/LREngPred_test')
 
 CutOffs = [0, 0.30, 0.35, 0.37, 0.4, 0.45, 0.8]
 
@@ -276,12 +188,12 @@ lr_eng_pd['Recall']= 100*lr_eng_pd['TP']/TP_FP_pd.iloc[0,2]
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Predict with MLP
+# MAGIC ## Read MLP predictions
 
 # COMMAND ----------
 
-MLPpred = spark.read.parquet(f"{team_blob_url}/LH/MLP/mlp_final_val")
 
+MLPpred = spark.read.parquet(f"{team_blob_url}/LH/MLP/mlp_final_test")
 # Convert probability output column to a column with probability of positive
 MLPpred = MLPpred.withColumns({"mlp_prob_pos": extract_prob_udf(col("mlp_prob_pos"))})
 
@@ -319,10 +231,6 @@ mlp_pd['Recall']= 100*mlp_pd['TP']/TP_FP_pd.iloc[0,2]
 
 # COMMAND ----------
 
-MLPpred.dtypes
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC ## Predict with Baseline
 
@@ -346,13 +254,13 @@ make_FP = udf(FP,  ArrayType(IntegerType()))
 
 # Make arrays of the same length as the cut-off array
 # With 1 if the decision would be TP(FP) at this cut off
-val_data = val_data.withColumns({'TP' : make_TP(col('Av_carrier_delay'), col('DEP_DEL15'))
+test_data = test_data.withColumns({'TP' : make_TP(col('Av_carrier_delay'), col('DEP_DEL15'))
                                 ,'FP' : make_FP(col('Av_carrier_delay'), col('DEP_DEL15'))
                                 })
 
 # Produce a pair-wise sum of these arrays over the entire dataframe, calculate total true positive along the way   
 num_cols = len(CutOffs)
-TP_FP_pd = val_data.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
+TP_FP_pd = test_data.agg(array(*[_sum(col("TP")[i]) for i in range(num_cols)]).alias("sumTP"),
                         array(*[_sum(col("FP")[i]) for i in range(num_cols)]).alias("sumFP"),
                         _sum(col("DEP_DEL15")).alias("Positives")
                         ).toPandas()
@@ -369,7 +277,7 @@ av_pd['Recall']= 100*av_pd['TP']/TP_FP_pd.iloc[0,2]
 
 # COMMAND ----------
 
-val_data = val_data.withColumn('rnd_pred', rand(seed = 42) )
+test_data = test_data.withColumn('rnd_pred', rand(seed = 42) )
 # Set decison cut offs
 CutOffs = [0, 0.30, 0.60, 0.90, 0.99]
 
@@ -388,7 +296,7 @@ make_FP = udf(FP,  ArrayType(IntegerType()))
 
 # Make arrays of the same length as the cut-off array
 # With 1 if the decision would be TP(FP) at this cut off
-val_data = val_data.withColumns({'TP':make_TP(col('rnd_pred'), col('DEP_DEL15'))
+test_data = test_data.withColumns({'TP':make_TP(col('rnd_pred'), col('DEP_DEL15'))
                                 , 'FP':make_FP(col('rnd_pred'), col('DEP_DEL15'))
                                 })
 
@@ -459,7 +367,7 @@ axes.spines['right'].set_visible(False)
 axes.spines['top'].set_visible(False)
 
 plt.show()
-fig.savefig(f"../Images/Models_on_val.jpg", bbox_inches='tight', dpi = 300)
+fig.savefig(f"../Images/Models_on_test.jpg", bbox_inches='tight', dpi = 300)
 
 # COMMAND ----------
 

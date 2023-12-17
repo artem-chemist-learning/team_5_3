@@ -37,15 +37,16 @@ team_blob_url = blob_connect()
 # Load data
 # Assumes the following columns: ['sched_depart_date_time_UTC', 'TAIL_NUM', 'label', 'xxx', 'yyy']
 # xxx: predicted probabilities; yyy: predicted labels. Both columns should have df-specific names
-LREngPred = spark.read.parquet(f"{team_blob_url}/BK/Val_pred_lr_eng")
-MLPpred = spark.read.parquet(f"{team_blob_url}/BK/mlp_pred")
-RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_final_val")
+LREngPred = spark.read.parquet(f"{team_blob_url}/BK/LREngPred_train")
+MLPpred = spark.read.parquet(f"{team_blob_url}/LH/MLP/mlp_unbalanced_trai")
+RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_finaltest_train")
 
 # COMMAND ----------
 
 # Convert probability output column to a column with probability of positive
 extract_prob_udf = udf(lambda x: float(x[1]) , DoubleType())
 RFPred = RFPred.withColumns({"rf_prob_pos": extract_prob_udf(col("probability"))})
+MLPpred = MLPpred.withColumns({"mlp_prob_pos": extract_prob_udf(col("mlp_prob_pos"))})
 
 # COMMAND ----------
 
