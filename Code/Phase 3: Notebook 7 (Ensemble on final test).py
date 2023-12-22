@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC
-# MAGIC ## Ensemble model on the final train dataset
+# MAGIC ## Predictions using Logistic regression model
 
 # COMMAND ----------
 
@@ -37,9 +37,9 @@ team_blob_url = blob_connect()
 # Load data
 # Assumes the following columns: ['sched_depart_date_time_UTC', 'TAIL_NUM', 'label', 'xxx', 'yyy']
 # xxx: predicted probabilities; yyy: predicted labels. Both columns should have df-specific names
-LREngPred = spark.read.parquet(f"{team_blob_url}/BK/LREngPred_train")
-MLPpred = spark.read.parquet(f"{team_blob_url}/LH/MLP/mlp_unbalanced_train")
-RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_finaltest_train")
+LREngPred = spark.read.parquet(f"{team_blob_url}/BK/LREngPred_test")
+MLPpred = spark.read.parquet(f"{team_blob_url}/LH/MLP/mlp_final_test")
+RFPred = spark.read.parquet(f"{team_blob_url}/ES/RF/Model4_finaltest_test")
 
 # COMMAND ----------
 
@@ -141,76 +141,3 @@ Recall = 100*TP/Positives
 F1 = 2*Precision*Recall/(Recall+Precision)
 F2 = 5*Precision*Recall/(Recall+ 4*Precision)
 print(f"Precision: {round(Precision,1)}, Recall: {round(Recall,1)}, F1: {round(F1,1)}, F2: {round(F2,1)}")
-
-# COMMAND ----------
-
-histogram_ontime = df.filter(col("final")<1).select('DEP_DELAY').rdd.flatMap(lambda x: x).histogram(100)
-histogram_delayed = df.filter(col("final")>0).select('DEP_DELAY').rdd.flatMap(lambda x: x).histogram(100)
-
-# Loading the Computed Histogram into a Pandas Dataframe for plotting
-pd_ontime = pd.DataFrame(
-    list(zip(*histogram_ontime)), 
-    columns=['bin', 'frequency']
-).set_index('bin').reset_index()
-# Loading the Computed Histogram into a Pandas Dataframe for plotting
-pd_delayed = pd.DataFrame(
-    list(zip(*histogram_delayed)), 
-    columns=['bin', 'frequency']
-).set_index(
-    'bin').reset_index()
-
-# COMMAND ----------
-
-histogram_ontime_mlp = df.filter(col("mlp_pred_lbl")<1).select('DEP_DELAY').rdd.flatMap(lambda x: x).histogram(100)
-histogram_delayed_mlp = df.filter(col("mlp_pred_lbl")>0).select('DEP_DELAY').rdd.flatMap(lambda x: x).histogram(100)
-
-# Loading the Computed Histogram into a Pandas Dataframe for plotting
-mlp_pd_ontime = pd.DataFrame(
-    list(zip(*histogram_ontime)), 
-    columns=['bin', 'frequency']
-).set_index('bin').reset_index()
-# Loading the Computed Histogram into a Pandas Dataframe for plotting
-mlp_pd_delayed = pd.DataFrame(
-    list(zip(*histogram_delayed)), 
-    columns=['bin', 'frequency']
-).set_index(
-    'bin').reset_index()
-
-# COMMAND ----------
-
-dfs = {"Delayed" :pd_delayed
-        ,"On time":pd_ontime}
-
-colors = {"Delayed" :'g'
-        ,"On time":'r'}
-
-# Instantiate figure and axis
-num_rows = 1
-num_columns = 1
-fig, axes = plt.subplots(num_rows, num_columns, sharex=True)
-fig.set_figheight(10)
-fig.set_size_inches(8, 6)
-
-#Fill the axis with data
-for name, d in dfs.items():
-  axes.bar(d.bin, d.frequency, label = name, color = colors[name], width = 5)
-
-#Set legend position
-axes.legend(loc = 'upper right')
-
-#Setup the x and y 
-axes.set_ylabel('Number of flights')
-axes.set_xlabel('Delay, min')
-
-# Remove the bounding box to make the graphs look less cluttered
-axes.spines['right'].set_visible(False)
-axes.spines['top'].set_visible(False)
-start, end = axes.get_xlim()
-axes.xaxis.set_ticks(np.arange(start, end, 15))
-axes.set_xlim(-40, 195)
-plt.show()
-fig.savefig(f"../Images/Label_distribution.jpg", bbox_inches='tight', dpi = 300)
-
-# COMMAND ----------
-
-
